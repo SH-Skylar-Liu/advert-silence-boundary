@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Media and archive data must never be committed
+*.mp4
+*.mkv
+*.mov
+*.wav
+*.mp3
+
+# Run outputs (ledgers, alignment CSVs, logs, caption JSON)
+*.log
+plan_*.csv
+*_boundary_alignment.csv
+bench_*/
+caps_*/
+qc_out/
+
+# Keep the bundled example
+!examples/example_cut_ledger.csv
+
+# OS
+.DS_Store
+Thumbs.db
