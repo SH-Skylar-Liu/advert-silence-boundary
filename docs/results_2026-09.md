@@ -134,6 +134,23 @@ reason. C eliminates it by construction, and is now the default (`--end-mode nex
 The ablation required no re-cutting: the ledger stores the Stage A midpoint and the
 refined point for every clip, so all three variants are arithmetic over one CSV.
 
+## 5b. Independent reproduction from a clean clone (10 Sep 2026)
+
+The repository was cloned into an empty directory on the BFI workstation
+(`/home/shihan/storage/code/advert-silence-boundary`) and the pipeline re-run from
+scratch, with no files carried over from the working copy.
+
+| Step | Result |
+|---|---|
+| Ablation self-test on the bundled example ledger (no archive data) | passed, identical to the development machine |
+| Ledger for `2020-08-29_ITV1 HD_09:39:00.mp4` | 35 clips, 23 cut points refined |
+| A / B / C ablation | 0.206 s / 0.065 s / **0.022 s**, A→C **9.4×** |
+
+All three figures match those measured on the development machine between 6 and 10
+September. The bundled synthetic ledger means the ablation can be verified without
+access to the archive at all, which is what makes the result checkable by a reviewer
+who has no BFI data.
+
 ## 6. Environment constraints (BFI workstation, as of 10 Sep 2026)
 
 - The vLLM service runs under a different service account; it cannot be restarted from

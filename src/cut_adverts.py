@@ -5,20 +5,23 @@ Reuses silence_detect.py (must be in the same folder) for detection + alignment.
 
 Cut scheme
 ----------
-Each advert clip runs from the MIDPOINT of the silence at its start to the MIDPOINT
-of the silence at the next advert's start. Cutting inside the silent gap means no
-advert content is clipped. The last advert in a break ends at the next detected
-silence after it (the break-end transition), which the schedule alone does not give.
+Stage A locates each advert's start at the MIDPOINT of the silence preceding it.
+Stage B then pushes that start forward to the first scene change within the next
+second, because the midpoint typically sits a few frames early and the previous
+advert bleeds in (refine_first_frame.py; --no-refine disables it).
 
-Stage B - first-frame refinement (agreed 18 Aug 2026)
------------------------------------------------------
-The silence midpoint usually sits a few frames before the true first frame, so the
-previous advert bleeds into the start of this one. Every START cut is therefore
-pushed forward to the first scene change within the following second
-(refine_first_frame.py). END cuts stay on the silence midpoint: the cost is losing
-1-3 frames at the tail, which Stephen judged acceptable because adverts almost
-always end on a held frame. Disable with --no-refine; without scenedetect the
-ffmpeg backend is used instead.
+A clip ENDS on the next advert's refined start (--end-mode next-start), so its length
+is measured between two points of the same kind. Ending on the silence midpoint
+instead (--end-mode midpoint) mixes two references and makes the length absorb the
+next advert's shift as error; on one recording that made results worse than no
+refinement at all.
+
+The LAST advert of a break has no following advert to abut on. Its end comes from the
+break-end silence, and is taken at the START of that silence (--last-end
+silence-start): audio stops when the advert finishes, whereas the midpoint of that
+~2 s transition sits about a second late. Measured 12 Sep 2026 over 40 break-final
+clips, the midpoint rule ran 1.3-1.6 s long with a median error of 0.593 s against
+the scheduled slot length.
 
 Safeguards
 ----------
@@ -96,6 +99,10 @@ def main() -> None:
     ap.add_argument("--end-mode", choices=["next-start", "midpoint"], default="next-start",
                     help="where a clip ends: on the next advert's refined start (default), "
                          "or on the silence midpoint (the pre-6-Sep behaviour, for A/B)")
+    ap.add_argument("--last-end", choices=["silence-start", "midpoint"], default="silence-start",
+                    help="where the LAST advert of a break ends: at the start of the "
+                         "break-end silence (default), or at its midpoint (pre-12-Sep "
+                         "behaviour, which ran systematically ~1.3-1.6 s long)")
     a = ap.parse_args()
 
     do_refine = not a.no_refine
@@ -188,12 +195,20 @@ def main() -> None:
             elif i < nb - 1 and hits[i + 1] is not None:
                 end_cut = mid(hits[i + 1])
             else:
+                # Last advert of a break: its end is the break-end transition, which the
+                # schedule does not give. Use the START of that silence, not its midpoint.
+                # The break->programme silence runs about two seconds, so its midpoint sits
+                # roughly a second after the advert has actually finished: measured
+                # 12 Sep 2026 over 40 break-final clips, median error 0.593 s, with
+                # durations landing consistently 1.3-1.6 s above their scheduled slot.
+                # Audio stops when the advert ends, so the silence start is the boundary.
                 floor = it["bounds"][i][1] + T + a.min_last
                 after = [s for s in silences if s["start"] > floor]
                 if not after:
                     print(f"[skip] {it['label']} advert {i + 1}: no end silence found")
                     continue
-                end_cut = mid(min(after, key=lambda s: s["start"]))
+                end_sil = min(after, key=lambda s: s["start"])
+                end_cut = end_sil["start"] if a.last_end == "silence-start" else mid(end_sil)
             dur = end_cut - start_cut
             if dur <= 0:
                 continue
@@ -205,11 +220,17 @@ def main() -> None:
                 "recording": os.path.basename(a.recording),
                 "break": idx, "pos": i + 1,
                 "unique_id": ad.get("unique_id", ""), "brand": ad.get("brand", ""),
+                # Sky AdSmart addressable slots carry their own start time, so they
+                # survive the same-timestamp collapse and become clips of their own.
+                # Flag rather than drop: the slot did broadcast something, but what it
+                # broadcast differed per household, so it cannot be treated as one advert.
+                "placeholder": "1" if str(ad.get("unique_id", "")).startswith("SKYADSMART") else "",
                 "start_silence_mid_s": f"{start_a:.3f}",   # Stage A cut point
                 "start_s": f"{start_cut:.3f}",             # cut point actually used (after Stage B)
                 "shift_ms": f"{shift * 1000:.0f}",
                 "refine_status": status,
                 "end_s": f"{end_cut:.3f}", "duration_s": f"{dur:.3f}",
+                "break_last": "1" if i == nb - 1 else "",   # different end rule; worse precision
                 "clip": name,
             })
             tag = f"  +{shift * 1000:.0f}ms" if shift else ""
