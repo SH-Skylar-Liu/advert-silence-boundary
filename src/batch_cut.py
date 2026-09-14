@@ -79,7 +79,11 @@ def run_one(mp4: Path, meta: Path, args, outroot: Path, logdir: Path) -> dict:
     cmd = [sys.executable, str(CUTTER), str(mp4), "--metadata", str(meta),
            "--outdir", str(outdir), "--cut-csv", str(cut_csv),
            "--noise", str(args.noise), "--min-dur", str(args.min_dur),
-           "--end-mode", args.end_mode]
+           "--end-mode", args.end_mode, "--backend", args.backend,
+           "--min-match-rate", str(args.min_match_rate), "--min-matches", str(args.min_matches),
+           "--last-end", args.last_end]
+    if args.no_fill_missing:
+        cmd.append("--no-fill-missing")
     if args.dry_run:
         cmd.append("--dry-run")
     if args.no_refine:
@@ -121,6 +125,13 @@ def main() -> None:
     ap.add_argument("--plan-only", action="store_true", help="list the pairing and exit")
     ap.add_argument("--no-refine", action="store_true", help="disable Stage B refinement")
     ap.add_argument("--end-mode", choices=["next-start", "midpoint"], default="next-start")
+    # Passed straight through to cut_adverts.py, so a batch can reproduce an earlier
+    # rule set exactly (e.g. the 12 Sep baseline: --min-match-rate 1 --no-fill-missing).
+    ap.add_argument("--backend", choices=["auto", "ffmpeg", "scenedetect"], default="auto")
+    ap.add_argument("--min-match-rate", type=float, default=0.5)
+    ap.add_argument("--min-matches", type=int, default=3)
+    ap.add_argument("--no-fill-missing", action="store_true")
+    ap.add_argument("--last-end", choices=["silence-start", "midpoint"], default="silence-start")
     ap.add_argument("--noise", type=float, default=-40)
     ap.add_argument("--min-dur", type=float, default=0.2)
     ap.add_argument("--redo", action="store_true", help="reprocess even if a ledger exists")
@@ -153,7 +164,8 @@ def main() -> None:
     logdir.mkdir(exist_ok=True)
     summary_path, fail_path = outroot / "_summary.csv", outroot / "_failures.csv"
 
-    print(f"\njobs {args.jobs}   end-mode {args.end_mode}   "
+    print(f"\njobs {args.jobs}   end-mode {args.end_mode}   backend {args.backend}   "
+          f"min-match-rate {args.min_match_rate}   fill {not args.no_fill_missing}   "
           f"{'dry-run (no video written)' if args.dry_run else 'WRITING CLIPS'}\n")
 
     t0 = time.time()

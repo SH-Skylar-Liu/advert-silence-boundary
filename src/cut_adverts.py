@@ -30,7 +30,11 @@ Safeguards
   be monotonic in wall-clock and differ from the previous kept break by the scheduled
   gap (within --offset-tol). Breaks that fail (e.g. a break not fully in the recording
   that aliases onto another's silences) are dropped, not cut.
-- A break is cut only if every boundary matched a silence.
+- A break is accepted when at least --min-match-rate of its boundaries (and at least
+  --min-matches of them) landed on a silence. Boundaries that found no silence are
+  then filled from the schedule and the fitted offset, and flagged in the ledger as
+  start_source=schedule. Requiring every boundary to match instead (--min-match-rate 1
+  --no-fill-missing, the rule before 12 Sep 2026) discarded about half of all adverts.
 - Output goes to a NEW folder; no existing file is touched. Run --dry-run first.
 
 Usage
@@ -95,10 +99,24 @@ def main() -> None:
                     help="refinement search window in seconds; 1.0 as agreed, do not enlarge")
     ap.add_argument("--refine-threshold", type=float, default=None,
                     help="detector threshold; defaults to the backend default (Stephen tuned nothing)")
+    ap.add_argument("--backend", choices=["auto", "ffmpeg", "scenedetect"], default="auto",
+                    help="Stage B detector; auto = scenedetect when importable, else ffmpeg. "
+                         "Force one to compare backends on the same recordings")
     ap.add_argument("--cut-csv", help="write the cut ledger as CSV, for manual QC")
     ap.add_argument("--end-mode", choices=["next-start", "midpoint"], default="next-start",
                     help="where a clip ends: on the next advert's refined start (default), "
                          "or on the silence midpoint (the pre-6-Sep behaviour, for A/B)")
+    ap.add_argument("--fill-missing", dest="fill_missing", action="store_true", default=True,
+                    help="fill boundaries the silence detector missed from the schedule "
+                         "and the fitted offset (default on; they are flagged in the ledger)")
+    ap.add_argument("--no-fill-missing", dest="fill_missing", action="store_false",
+                    help="drop adverts whose boundary found no silence (pre-12-Sep behaviour)")
+    ap.add_argument("--min-match-rate", type=float, default=0.5,
+                    help="accept a break when at least this fraction of its boundaries "
+                         "matched a silence (default 0.5; 1.0 = the old all-or-nothing rule)")
+    ap.add_argument("--min-matches", type=int, default=3,
+                    help="and at least this many matched, so the fitted offset is not "
+                         "resting on one or two coincidences (default 3)")
     ap.add_argument("--last-end", choices=["silence-start", "midpoint"], default="silence-start",
                     help="where the LAST advert of a break ends: at the start of the "
                          "break-end silence (default), or at its midpoint (pre-12-Sep "
@@ -111,7 +129,14 @@ def main() -> None:
     # missing cv2, so the ffmpeg backend is what actually runs. The two thresholds
     # are not on the same scale, so cross-check against Stephen's output on the same
     # adverts before scaling up.
-    refine_backend = "scenedetect" if HAVE_SCENEDETECT else "ffmpeg"
+    if a.backend == "auto":
+        refine_backend = "scenedetect" if HAVE_SCENEDETECT else "ffmpeg"
+    else:
+        refine_backend = a.backend
+    # A forced scenedetect run must not quietly fall back: refine_start would return
+    # "no-backend" for every cut point and the ledger would look like an unrefined run.
+    if do_refine and refine_backend == "scenedetect" and not HAVE_SCENEDETECT:
+        raise SystemExit("--backend scenedetect requested, but scenedetect/cv2 cannot be imported")
     if do_refine:
         print(f"Stage B refinement: on (backend = {refine_backend}, "
               f"window {a.refine_window}s)\n")
@@ -136,8 +161,14 @@ def main() -> None:
     # offset-consistency + full-match filter
     kept = []
     for it in items:
-        if it["n"] < it["nb"]:
-            print(f"[drop] {it['label']}: only {it['n']}/{it['nb']} boundaries matched")
+        # All-or-nothing acceptance costs about half the corpus. A break is accepted
+        # when enough of its boundaries matched for the fitted offset T to be trusted;
+        # the remainder are filled from the schedule and flagged. Raise
+        # --min-match-rate towards 1.0 to return to the conservative behaviour.
+        rate = it["n"] / it["nb"] if it["nb"] else 0.0
+        if rate < a.min_match_rate or it["n"] < a.min_matches:
+            print(f"[drop] {it['label']}: only {it['n']}/{it['nb']} boundaries matched "
+                  f"({rate:.0%} < {a.min_match_rate:.0%}, or fewer than {a.min_matches})")
             continue
         if kept:
             p = kept[-1]
@@ -163,14 +194,30 @@ def main() -> None:
         # next advert's shift as an error (measured 6 Sep 2026: 8 of 35 clips drifted
         # further from their scheduled slot length). Abutting refined starts makes the
         # clip length equal the scheduled duration by construction. ---
-        starts, shifts, statuses = [], [], []
+        starts, shifts, statuses, sources = [], [], [], []
         for i in range(nb):
             if hits[i] is None:
-                starts.append(None)
-                shifts.append(0.0)
-                statuses.append("no-silence")
-                continue
-            s_a = mid(hits[i])
+                # --- Filling a boundary the silence detector missed ---
+                # The offset T is fitted from the boundaries that DID match, so once a
+                # break is accepted the position of every advert in it is already known
+                # from the schedule: position = scheduled offset within the break + T.
+                # A silence match is a more precise confirmation of that position, not
+                # the only way to obtain it. Dropping the whole break over one missing
+                # silence discarded about half of all adverts (yield 13-93%, ~50% on
+                # average, measured 12 Sep 2026 over 12 recordings).
+                # These starts are still refined by Stage B, and are marked
+                # start_source=schedule so their precision can be reported separately.
+                if not a.fill_missing:
+                    starts.append(None)
+                    shifts.append(0.0)
+                    statuses.append("no-silence")
+                    sources.append("")
+                    continue
+                s_a = it["bounds"][i][1] + T
+                sources.append("schedule")
+            else:
+                s_a = mid(hits[i])
+                sources.append("silence")
             s_b, shift, status = (s_a, 0.0, "off")
             if do_refine:
                 s_b, shift, status = refine_start(
@@ -184,7 +231,7 @@ def main() -> None:
             statuses.append(status)
 
         for i in range(nb):
-            if hits[i] is None or starts[i] is None:
+            if starts[i] is None:
                 continue
             start_a, start_cut = starts[i]
             shift, status = shifts[i], statuses[i]
@@ -194,6 +241,8 @@ def main() -> None:
                 end_cut = starts[i + 1][1]
             elif i < nb - 1 and hits[i + 1] is not None:
                 end_cut = mid(hits[i + 1])
+            elif i < nb - 1 and starts[i + 1] is not None:
+                end_cut = starts[i + 1][1]
             else:
                 # Last advert of a break: its end is the break-end transition, which the
                 # schedule does not give. Use the START of that silence, not its midpoint.
@@ -229,6 +278,8 @@ def main() -> None:
                 "start_s": f"{start_cut:.3f}",             # cut point actually used (after Stage B)
                 "shift_ms": f"{shift * 1000:.0f}",
                 "refine_status": status,
+                "refine_backend": refine_backend if do_refine else "",   # thresholds differ per backend
+                "start_source": sources[i],   # silence = matched; schedule = filled from T
                 "end_s": f"{end_cut:.3f}", "duration_s": f"{dur:.3f}",
                 "break_last": "1" if i == nb - 1 else "",   # different end rule; worse precision
                 "clip": name,
@@ -246,6 +297,11 @@ def main() -> None:
     if do_refine:
         print(f"refinement: {n_refined}/{planned} cut points pushed forward "
               f"(the rest were already clean; no scene change means no change)")
+    n_sched = sum(1 for r in plan_rows if r.get("start_source") == "schedule")
+    if plan_rows:
+        print(f"start provenance: {len(plan_rows) - n_sched} from a matched silence, "
+              f"{n_sched} filled from the schedule "
+              f"({100 * n_sched / len(plan_rows):.0f}% filled)")
     if not a.dry_run:
         print(f"output folder: {a.outdir}")
 
