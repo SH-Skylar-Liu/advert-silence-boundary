@@ -281,6 +281,15 @@ def main() -> None:
                 # broadcast differed per household, so it cannot be treated as one advert.
                 "placeholder": "1" if str(ad.get("unique_id", "")).startswith("SKYADSMART") else "",
                 "start_silence_mid_s": f"{start_a:.3f}",   # Stage A cut point
+                # The silence itself, as ffmpeg reported it. The END of the silence is
+                # when audio resumes, i.e. an estimate of the advert's true start that
+                # comes from the AUDIO and owes nothing to the picture detector. Stage B
+                # can therefore be cross-checked at scale: a refined start that sits
+                # systematically later than the silence end is a systematic drift, which
+                # the slot-duration metric cannot see (it only measures differences).
+                # Empty when the boundary was filled from the schedule (no silence).
+                "silence_start_s": "" if hits[i] is None else f"{hits[i]['start']:.3f}",
+                "silence_end_s": "" if hits[i] is None else f"{hits[i]['end']:.3f}",
                 "start_s": f"{start_cut:.3f}",             # cut point actually used (after Stage B)
                 "shift_ms": f"{shift * 1000:.0f}",
                 "refine_status": status,
