@@ -71,9 +71,11 @@ def variants_from_ledger(rows: list[dict]) -> dict[str, list[tuple]]:
     break keeps the ledger's own end (the break-end silence), because no following
     advert exists to abut on; it is identical in all three variants.
     """
-    by_break: dict[str, list[dict]] = defaultdict(list)
+    # Key on recording as well as break: ledgers from several recordings are often
+    # concatenated for a pooled figure, and break numbers restart in every recording.
+    by_break: dict[tuple, list[dict]] = defaultdict(list)
     for r in rows:
-        by_break[r["break"]].append(r)
+        by_break[(r.get("recording", ""), r["break"])].append(r)
 
     out: dict[str, list[tuple]] = {"A": [], "B": [], "C": []}
     for _, rs in by_break.items():
