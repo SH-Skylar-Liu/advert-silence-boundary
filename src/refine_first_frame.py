@@ -97,7 +97,7 @@ def _open(path: str):
 
 def refine_start(recording: str, start_s: float, window_s: float = WINDOW_S,
                  threshold: float | None = None, verbose: bool = False,
-                 backend: str = "auto"):
+                 backend: str = "auto", min_scene_len: int | None = None):
     """
     Find the first scene change in [start_s, start_s + window_s].
 
@@ -107,6 +107,10 @@ def refine_start(recording: str, start_s: float, window_s: float = WINDOW_S,
         window_s  : search window, default 1.0 s (the agreed value; do not enlarge)
         threshold : detector threshold; None uses the backend default
         backend   : "auto" | "ffmpeg" | "scenedetect"
+        min_scene_len : scenedetect only, in FRAMES; None keeps PySceneDetect's default
+                    (15). The default suppresses any cut in the first 15 frames of the
+                    window, which is where the true first frame usually is (measured
+                    15 Sep 2026: every refinement landed at >= 597 ms). Use 1.
     Out:
         (refined_s, shift_s, status)
         refined_s : refined cut point, equal to start_s when nothing was found
@@ -131,8 +135,13 @@ def refine_start(recording: str, start_s: float, window_s: float = WINDOW_S,
         video.seek(FrameTimecode(start_s, fps))
 
         sm = SceneManager()
-        sm.add_detector(ContentDetector() if threshold is None
-                        else ContentDetector(threshold=threshold))
+        # Pass only what was asked for, so an unset run is byte-for-byte the old call
+        kwargs = {}
+        if threshold is not None:
+            kwargs["threshold"] = threshold
+        if min_scene_len is not None:
+            kwargs["min_scene_len"] = min_scene_len
+        sm.add_detector(ContentDetector(**kwargs))
         sm.detect_scenes(video=video, duration=FrameTimecode(window_s, fps),
                          show_progress=False)
         # start_in_scene=True treats the window start as the start of a scene, so the
@@ -164,6 +173,8 @@ def main() -> None:
     ap.add_argument("--csv", help="read cut points from a CSV with a start_s column")
     ap.add_argument("--window", type=float, default=WINDOW_S)
     ap.add_argument("--threshold", type=float, default=None)
+    ap.add_argument("--min-scene-len", type=int, default=None,
+                    help="scenedetect only, in frames; default 15 hides cuts in the first 0.6 s")
     ap.add_argument("--backend", choices=["auto", "ffmpeg", "scenedetect"], default="auto")
     a = ap.parse_args()
 
@@ -190,7 +201,8 @@ def main() -> None:
     n_ref = 0
     print(f"{'start_s':>10} {'refined_s':>10} {'shift_ms':>9}  status")
     for i, s in enumerate(starts):
-        r, shift, st = refine_start(a.recording, s, a.window, a.threshold, backend=backend)
+        r, shift, st = refine_start(a.recording, s, a.window, a.threshold, backend=backend,
+                                min_scene_len=a.min_scene_len)
         n_ref += st == "refined"
         print(f"{s:10.3f} {r:10.3f} {shift * 1000:9.0f}  {st}")
         if rows:

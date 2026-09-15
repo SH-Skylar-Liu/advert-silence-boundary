@@ -99,6 +99,9 @@ def main() -> None:
                     help="refinement search window in seconds; 1.0 as agreed, do not enlarge")
     ap.add_argument("--refine-threshold", type=float, default=None,
                     help="detector threshold; defaults to the backend default (Stephen tuned nothing)")
+    ap.add_argument("--min-scene-len", type=int, default=None,
+                    help="scenedetect only, in frames; unset keeps PySceneDetect's default 15, "
+                         "which hides any cut in the first 0.6 s of the window (15 Sep 2026)")
     ap.add_argument("--backend", choices=["auto", "ffmpeg", "scenedetect"], default="auto",
                     help="Stage B detector; auto = scenedetect when importable, else ffmpeg. "
                          "Force one to compare backends on the same recordings")
@@ -137,8 +140,11 @@ def main() -> None:
     # "no-backend" for every cut point and the ledger would look like an unrefined run.
     if do_refine and refine_backend == "scenedetect" and not HAVE_SCENEDETECT:
         raise SystemExit("--backend scenedetect requested, but scenedetect/cv2 cannot be imported")
+    if a.min_scene_len is not None and refine_backend != "scenedetect":
+        raise SystemExit("--min-scene-len only applies to --backend scenedetect")
     if do_refine:
         print(f"Stage B refinement: on (backend = {refine_backend}, "
+              f"min_scene_len {a.min_scene_len if a.min_scene_len is not None else 'default'}, "
               f"window {a.refine_window}s)\n")
 
     silences = parse_silences(run_silencedetect(a.recording, a.noise, a.min_dur))
@@ -222,7 +228,7 @@ def main() -> None:
             if do_refine:
                 s_b, shift, status = refine_start(
                     a.recording, s_a, a.refine_window, a.refine_threshold,
-                    backend=refine_backend)
+                    backend=refine_backend, min_scene_len=a.min_scene_len)
                 n_refined += status == "refined"
                 if status.startswith("error"):
                     print(f"   [refine failed, falling back to silence midpoint] {status}")
@@ -279,6 +285,7 @@ def main() -> None:
                 "shift_ms": f"{shift * 1000:.0f}",
                 "refine_status": status,
                 "refine_backend": refine_backend if do_refine else "",   # thresholds differ per backend
+                "min_scene_len": "" if a.min_scene_len is None else a.min_scene_len,
                 "start_source": sources[i],   # silence = matched; schedule = filled from T
                 "end_s": f"{end_cut:.3f}", "duration_s": f"{dur:.3f}",
                 "break_last": "1" if i == nb - 1 else "",   # different end rule; worse precision

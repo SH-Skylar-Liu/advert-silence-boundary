@@ -82,6 +82,8 @@ def run_one(mp4: Path, meta: Path, args, outroot: Path, logdir: Path) -> dict:
            "--end-mode", args.end_mode, "--backend", args.backend,
            "--min-match-rate", str(args.min_match_rate), "--min-matches", str(args.min_matches),
            "--last-end", args.last_end]
+    if args.min_scene_len is not None:
+        cmd += ["--min-scene-len", str(args.min_scene_len)]
     if args.no_fill_missing:
         cmd.append("--no-fill-missing")
     if args.dry_run:
@@ -128,6 +130,7 @@ def main() -> None:
     # Passed straight through to cut_adverts.py, so a batch can reproduce an earlier
     # rule set exactly (e.g. the 12 Sep baseline: --min-match-rate 1 --no-fill-missing).
     ap.add_argument("--backend", choices=["auto", "ffmpeg", "scenedetect"], default="auto")
+    ap.add_argument("--min-scene-len", type=int, default=None)
     ap.add_argument("--min-match-rate", type=float, default=0.5)
     ap.add_argument("--min-matches", type=int, default=3)
     ap.add_argument("--no-fill-missing", action="store_true")
@@ -164,7 +167,7 @@ def main() -> None:
     logdir.mkdir(exist_ok=True)
     summary_path, fail_path = outroot / "_summary.csv", outroot / "_failures.csv"
 
-    print(f"\njobs {args.jobs}   end-mode {args.end_mode}   backend {args.backend}   "
+    print(f"\njobs {args.jobs}   end-mode {args.end_mode}   backend {args.backend}   min-scene-len {args.min_scene_len}   "
           f"min-match-rate {args.min_match_rate}   fill {not args.no_fill_missing}   "
           f"{'dry-run (no video written)' if args.dry_run else 'WRITING CLIPS'}\n")
 
