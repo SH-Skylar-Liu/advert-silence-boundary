@@ -1,6 +1,6 @@
 # Advert boundary detection — silence + scene-change pipeline
 
-**Version 1.2** (15 Sep 2026) · English · [中文](README.zh-CN.md)
+**Version 1.6** (19 Sep 2026) · English · [中文](README.zh-CN.md)
 
 > ⚠️ **PRIVATE REPOSITORY — INTERNAL PATHS INCLUDED.**
 > Commands and defaults in this repository refer to real BFI server paths and account
@@ -47,20 +47,31 @@ advert's shift as error. The **last advert of a break** has no following advert;
 ends at the **start** of the break-end silence (`--last-end silence-start`), because
 the midpoint of that ~2 s transition sits about a second after the advert has stopped.
 
+**Silence guard.** A refinement that lands more than `--max-past-silence-end` ms
+(default 80, two frames at 25 fps) past the **end** of the silence is reverted to the
+Stage A midpoint and flagged `reverted-past-silence`. The silence end is where audio
+resumes: it comes from the audio and owes nothing to the picture detector, so an
+advert's first frame cannot sit far beyond it, and a refinement that lands there has
+found a shot change inside the advert. Pass `0` to reproduce runs from before
+19 September 2026.
+
 **Two detector backends.** `--backend ffmpeg` uses ffmpeg's `select='gt(scene,0.3)'`
 filter and needs no Python packages. `--backend scenedetect` uses PySceneDetect's
 `ContentDetector` and needs OpenCV. `--backend auto` picks scenedetect when it can be
-imported. **All published figures below use the ffmpeg backend.** With its default
-`min_scene_len`, the scenedetect backend makes results worse than no refinement at all
-(see below); do not use it without `--min-scene-len`.
+imported. **Use scenedetect with `--min-scene-len 1`**: at PySceneDetect's default of
+15 frames no cut in the first 0.6 s of the window can be reported, which is where the
+true first frame usually lies, and results come out worse than no refinement at all.
 
 ---
 
 ## Measured results
 
 **Sample:** 12 recordings from 29–30 Aug 2020, four channels (ITV1 HD, CH4, Channel 5,
-ITV2), 361 cut points. Run `R0` on 15 Sep 2026, all-or-nothing break acceptance
-(`--min-match-rate 1 --no-fill-missing`), dry run.
+ITV2), 361 cut points; all-or-nothing break acceptance (`--min-match-rate 1
+--no-fill-missing`), dry runs, 15–19 Sep 2026.
+
+**Current configuration:** `--backend scenedetect --min-scene-len 1
+--max-past-silence-end 80`.
 
 ### Cut accuracy
 
@@ -73,12 +84,19 @@ detector, so this is an independent check rather than self-confirmation.
 | Variant | median | mean | max | <0.2 s |
 |---|---|---|---|---|
 | A — silence midpoint → next midpoint | 0.122 s (3.0 frames) | 0.241 s | 2.369 s | 60% |
-| B — refined start → next midpoint | 0.077 s (1.9 frames) | 0.205 s | 2.395 s | 69% |
-| **C — refined start → next refined start** | **0.042 s (1.0 frame)** | **0.195 s** | 2.395 s | **72%** |
+| B — refined start → next midpoint | 0.065 s (1.6 frames) | 0.180 s | 2.395 s | 71% |
+| **C — refined start → next refined start** | **0.030 s (0.8 frames)** | **0.140 s** | 2.395 s | **77%** |
 
-**A → C is a 2.9× improvement in median error.** The estimate was stable between 8 and
-12 recordings. An earlier single-recording figure of about 9× was a sample effect and
-should not be cited.
+**A → C is a 4.1× improvement in median error.** Without the silence guard the same
+configuration gives a median of 0.044 s and a mean of 0.208 s, and the ffmpeg backend
+gives 0.042 s and 0.195 s (A → C 2.9×); the guard reverts about 5% of refinements and
+takes roughly 30% off the mean. An earlier single-recording figure of about 9x was a
+sample effect and should not be cited.
+
+These figures measure **consistency with the scheduled slot lengths**, not absolute
+accuracy: clip length is a difference, so a shift applied to every cut point cancels
+out. Absolute position is established by eye on a sample (see *How the cuts are
+checked*).
 
 Refinement is not a uniform gain. On recordings whose silence midpoints were already
 close (median A error around 0.05 s), B and C are identical; on recordings with a large
@@ -90,21 +108,45 @@ The mean stays roughly five times the median. A minority of cuts are far out for
 reasons refinement cannot address (alignment errors, or adverts that are not sold at a
 standard slot length). This has not yet been diagnosed.
 
-### Detector backend
+### Detector backend and the guard
 
-Same 12 recordings, same rules, only the refinement backend changed:
+Same 12 recordings, same rules, changing only the refinement:
 
-| Run | Backend | refined | C median | C <0.2 s | shift of refined cuts |
+| Run | Refinement | refined | C median | C mean | C <0.2 s |
 |---|---|---|---|---|---|
-| R0 | ffmpeg, threshold 0.3 | 156 | **0.042 s** | 72% | 41–988 ms, median 211 ms; 118 below 600 ms |
-| R1 | scenedetect, defaults | 47 | 0.146 s | 57% | 597–988 ms, median 785 ms; 1 below 600 ms |
+| R0 | ffmpeg, threshold 0.3 | 156 | 0.042 s | 0.195 s | 72% |
+| R1 | scenedetect, defaults | 47 | 0.146 s | 0.280 s | 57% |
+| R2 | scenedetect, `--min-scene-len 1` | 196 | 0.044 s | 0.208 s | 68% |
+| **R2g** | **R2 + guard 80 ms** | **176** | **0.030 s** | **0.140 s** | **77%** |
 
-With defaults, PySceneDetect is **worse than no refinement** (A median 0.122 s). The
-cause is `ContentDetector`'s default `min_scene_len=15` frames: combined with treating
-the window start as the start of a scene, no cut in the first 0.6 s of the window can be
-reported. That is exactly where the true first frame usually lies, so the small
-corrections are lost and the cuts that remain fall inside the advert.
-`--min-scene-len 1` removes this constraint; its measured effect (`R2`) is pending.
+With PySceneDetect's defaults the refinement is **worse than no refinement at all**
+(A median 0.122 s), because `min_scene_len=15` frames hides every cut in the first 0.6 s
+of the window — exactly where the true first frame usually lies. `--min-scene-len 1`
+removes that constraint.
+
+Pooled medians hide which backend is better: per recording, scenedetect wins 6 of the
+12, ffmpeg 1, with 5 draws. Its weakness was the tail (a lower share within 0.2 s), and
+that is what the guard fixes. Lowering the ffmpeg threshold from 0.3 to 0.15 changes
+almost nothing (median 0.021 s on the 2024 test recording, against 0.000 s for
+scenedetect), so the difference between the backends is not sensitivity: ffmpeg reports
+small changes at the very start of an advert that scenedetect ignores, and misses the
+real boundary a few hundred milliseconds later.
+
+### How the cuts are checked
+
+Three independent layers, because none of them is sufficient alone:
+
+1. **Slot consistency** (all cut points, automatic). Constrains the distance between
+   consecutive cut points, and is blind to a drift shared by every cut point.
+2. **The end of the silence** (all cut points, automatic). Audio resuming is an
+   independent estimate of an advert's start. Measured over 361 cut points, cuts sit a
+   median of 280 ms before it in both backends, which a frame-by-frame check attributed
+   to audio starting after the picture rather than to cuts being early.
+3. **Frame by frame, by eye** (a sample). The only layer that establishes absolute
+   position. It found the case the guard now handles: on b41_05 the silence midpoint was
+   correct to one frame and both backends pushed the cut 17 frames into the advert.
+   Judgements are recorded to +/-2 frames, and the eye is used only where a disagreement
+   is much larger than that.
 
 ### Yield
 
@@ -141,6 +183,8 @@ src/
   cut_adverts.py          one recording: align, refine, plan/cut clips, write the ledger
   batch_cut.py            many recordings: parallel, resumable, one ledger per recording
   compare_end_modes.py    ablation over one or more ledgers: variants A / B / C
+  compare_runs.py         two runs compared per recording, plus the silence-end check
+  frame_strip.py          every frame around a cut point as one page, for ground truth
   survey_silence.py       stratified sample by channel x year; where does the cue hold?
   vllm_caption.py         captioning client + concurrency benchmark (standard library only)
 examples/
@@ -236,10 +280,11 @@ because the delivered files carry more than one video stream plus data streams.
 
 ## Known limitations
 
-- **The scenedetect backend is not yet validated.** Defaults are harmful (R1); the effect
-  of `--min-scene-len 1` is pending (R2). Until then, use `--backend ffmpeg`.
-- **The ffmpeg scene threshold (0.3) has not been calibrated frame by frame**; the
-  evidence for it is the duration convergence above.
+- **Absolute accuracy rests on two frame-by-frame checks so far.** The plan is a sample
+  of about fifteen; until then, published figures are consistency with the slot grid.
+- **The ffmpeg scene threshold (0.3) has not been calibrated frame by frame.** The two
+  backends disagree on 59 of 361 cut points, which is the natural sample to calibrate
+  on.
 - **Fill-from-schedule is unmeasured.** It is the default, but its yield gain and the
   precision of filled cuts have not been measured. Report `start_source=schedule` cuts
   separately.
@@ -255,6 +300,17 @@ because the delivered files carry more than one video stream plus data streams.
   share a timestamp.
 
 ## Changelog
+
+**1.6 — 19 Sep 2026**
+- Silence guard: `--max-past-silence-end` (default 80 ms, 0 disables) reverts a
+  refinement that lands past the end of the silence. Over 361 cut points it reverts 20
+  of them and takes the mean slot deviation from 0.208 s to 0.140 s.
+- `frame_strip.py`: every frame around a cut point as one labelled page, for ground
+  truth by eye. Times come from ffmpeg's `showinfo`, and from `drawtext` where the
+  build has it.
+- `compare_runs.py`: ledger-to-ledger comparison, per recording plus the silence-end
+  cross-check.
+- The ledger records `silence_start_s` and `silence_end_s`.
 
 **1.2 — 15 Sep 2026**
 - `--min-scene-len` for the scenedetect backend (unset keeps PySceneDetect's default);

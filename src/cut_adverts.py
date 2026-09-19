@@ -35,6 +35,14 @@ Safeguards
   then filled from the schedule and the fitted offset, and flagged in the ledger as
   start_source=schedule. Requiring every boundary to match instead (--min-match-rate 1
   --no-fill-missing, the rule before 12 Sep 2026) discarded about half of all adverts.
+- Silence guard: a Stage B refinement that lands more than --max-past-silence-end ms
+  past the END of the silence is reverted to the Stage A midpoint and flagged in the
+  ledger as reverted-past-silence. The silence end is where audio resumes, which comes
+  from the audio and owes nothing to the picture detector, so an advert's first frame
+  cannot sit far beyond it. Confirmed by eye on 19 Sep 2026 (b41_05, Lidl): the midpoint
+  was correct to one frame and both detector backends pushed the cut 17 frames into the
+  advert. Over 361 cut points the guard reverts about 5% of refinements and cuts the
+  mean slot deviation from 0.208 s to 0.140 s. Pass 0 to reproduce earlier runs.
 - Output goes to a NEW folder; no existing file is touched. Run --dry-run first.
 
 Usage
@@ -99,10 +107,11 @@ def main() -> None:
                     help="refinement search window in seconds; 1.0 as agreed, do not enlarge")
     ap.add_argument("--refine-threshold", type=float, default=None,
                     help="detector threshold; defaults to the backend default (Stephen tuned nothing)")
-    ap.add_argument("--max-past-silence-end", type=float, default=None, metavar="MS",
+    ap.add_argument("--max-past-silence-end", type=float, default=80.0, metavar="MS",
                     help="revert a refinement that lands more than this many ms past the "
-                         "end of the silence (where audio resumes); such a refinement "
-                         "found a shot change inside the advert. 80 = two frames at 25 fps")
+                         "end of the silence, where audio resumes: such a refinement found "
+                         "a shot change inside the advert (default 80 = two frames at 25 fps; "
+                         "0 disables the guard, reproducing runs before 19 Sep 2026)")
     ap.add_argument("--min-scene-len", type=int, default=None,
                     help="scenedetect only, in frames; unset keeps PySceneDetect's default 15, "
                          "which hides any cut in the first 0.6 s of the window (15 Sep 2026)")
@@ -146,8 +155,12 @@ def main() -> None:
         raise SystemExit("--backend scenedetect requested, but scenedetect/cv2 cannot be imported")
     if a.min_scene_len is not None and refine_backend != "scenedetect":
         raise SystemExit("--min-scene-len only applies to --backend scenedetect")
+    # 0 disables the guard, which is how a pre-19-Sep-2026 run is reproduced.
+    # 中文：设为 0 即关闭护栏，用于复现 2026-09-19 之前的运行。
+    if a.max_past_silence_end is not None and a.max_past_silence_end <= 0:
+        a.max_past_silence_end = None
     if a.max_past_silence_end is not None and not do_refine:
-        raise SystemExit("--max-past-silence-end has no effect with --no-refine")
+        a.max_past_silence_end = None          # nothing to guard without Stage B
     if do_refine:
         print(f"Stage B refinement: on (backend = {refine_backend}, "
               f"guard {a.max_past_silence_end if a.max_past_silence_end is not None else 'off'}, "

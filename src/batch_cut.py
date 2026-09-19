@@ -84,6 +84,8 @@ def run_one(mp4: Path, meta: Path, args, outroot: Path, logdir: Path) -> dict:
            "--last-end", args.last_end]
     if args.min_scene_len is not None:
         cmd += ["--min-scene-len", str(args.min_scene_len)]
+    if args.refine_threshold is not None:
+        cmd += ["--refine-threshold", str(args.refine_threshold)]
     if args.max_past_silence_end is not None:
         cmd += ["--max-past-silence-end", str(args.max_past_silence_end)]
     if args.no_fill_missing:
@@ -133,7 +135,12 @@ def main() -> None:
     # rule set exactly (e.g. the 12 Sep baseline: --min-match-rate 1 --no-fill-missing).
     ap.add_argument("--backend", choices=["auto", "ffmpeg", "scenedetect"], default="auto")
     ap.add_argument("--min-scene-len", type=int, default=None)
-    ap.add_argument("--max-past-silence-end", type=float, default=None, metavar="MS")
+    # Missing here until 19 Sep 2026, so a threshold sweep run through this driver
+    # exited at argument parsing and wrote no ledgers at all.
+    # 中文：此项曾缺失，导致用本驱动做阈值扫描时在参数解析处直接退出、不产出任何台账。
+    ap.add_argument("--refine-threshold", type=float, default=None)
+    ap.add_argument("--max-past-silence-end", type=float, default=80.0, metavar="MS",
+                    help="silence guard, in ms; 0 disables it (pre-19-Sep-2026 behaviour)")
     ap.add_argument("--min-match-rate", type=float, default=0.5)
     ap.add_argument("--min-matches", type=int, default=3)
     ap.add_argument("--no-fill-missing", action="store_true")
