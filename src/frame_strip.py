@@ -74,12 +74,22 @@ def extract(recording: str, start: float, dur: float, outdir: str, width: int) -
     label = f"%{{pts\\:hms\\:{start}}}"
     vf = (f"drawtext=text='{label}':fontsize=26:fontcolor=white:borderw=3:"
           f"bordercolor=black:x=8:y=8,scale={width}:-2")
-    cmd = [FFMPEG, "-hide_banner", "-loglevel", "error", "-ss", f"{start:.3f}",
-           "-i", recording, "-t", f"{dur:.3f}", "-map", "0:v:0", "-vf", vf,
-           "-vsync", "0", "-q:v", "3", os.path.join(outdir, "f%04d.jpg")]
-    r = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
-    if r.returncode != 0:
-        sys.exit(f"ffmpeg failed: {r.stderr[-400:]}")
+    # -fps_mode passthrough keeps every decoded frame, one JPEG each. It replaced
+    # -vsync, which ffmpeg 9 (the build on the workstation) no longer accepts, so
+    # fall back to the old spelling for older ffmpeg rather than requiring one.
+    # 中文：-fps_mode passthrough 保留每一帧，一帧一张图。它取代了 -vsync；
+    # 工作站上的 ffmpeg 9 已不接受 -vsync，旧版 ffmpeg 则只认 -vsync，故两种都试。
+    base = [FFMPEG, "-hide_banner", "-loglevel", "error", "-ss", f"{start:.3f}",
+            "-i", recording, "-t", f"{dur:.3f}", "-map", "0:v:0", "-vf", vf]
+    tail = ["-q:v", "3", os.path.join(outdir, "f%04d.jpg")]
+    for mode in (["-fps_mode", "passthrough"], ["-vsync", "0"]):
+        r = subprocess.run(base + mode + tail, stderr=subprocess.PIPE, text=True)
+        if r.returncode == 0:
+            break
+        if "Unrecognized option" not in r.stderr and "Option not found" not in r.stderr:
+            sys.exit(f"ffmpeg failed: {r.stderr[-400:]}")
+    else:
+        sys.exit(f"ffmpeg failed (neither -fps_mode nor -vsync accepted): {r.stderr[-300:]}")
     return sorted(os.listdir(outdir))
 
 
