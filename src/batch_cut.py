@@ -84,6 +84,8 @@ def run_one(mp4: Path, meta: Path, args, outroot: Path, logdir: Path) -> dict:
            "--last-end", args.last_end]
     if args.min_scene_len is not None:
         cmd += ["--min-scene-len", str(args.min_scene_len)]
+    if args.max_past_silence_end is not None:
+        cmd += ["--max-past-silence-end", str(args.max_past_silence_end)]
     if args.no_fill_missing:
         cmd.append("--no-fill-missing")
     if args.dry_run:
@@ -131,6 +133,7 @@ def main() -> None:
     # rule set exactly (e.g. the 12 Sep baseline: --min-match-rate 1 --no-fill-missing).
     ap.add_argument("--backend", choices=["auto", "ffmpeg", "scenedetect"], default="auto")
     ap.add_argument("--min-scene-len", type=int, default=None)
+    ap.add_argument("--max-past-silence-end", type=float, default=None, metavar="MS")
     ap.add_argument("--min-match-rate", type=float, default=0.5)
     ap.add_argument("--min-matches", type=int, default=3)
     ap.add_argument("--no-fill-missing", action="store_true")
@@ -168,6 +171,7 @@ def main() -> None:
     summary_path, fail_path = outroot / "_summary.csv", outroot / "_failures.csv"
 
     print(f"\njobs {args.jobs}   end-mode {args.end_mode}   backend {args.backend}   min-scene-len {args.min_scene_len}   "
+          f"guard {args.max_past_silence_end}   "
           f"min-match-rate {args.min_match_rate}   fill {not args.no_fill_missing}   "
           f"{'dry-run (no video written)' if args.dry_run else 'WRITING CLIPS'}\n")
 

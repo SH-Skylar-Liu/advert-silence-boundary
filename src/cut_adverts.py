@@ -99,6 +99,10 @@ def main() -> None:
                     help="refinement search window in seconds; 1.0 as agreed, do not enlarge")
     ap.add_argument("--refine-threshold", type=float, default=None,
                     help="detector threshold; defaults to the backend default (Stephen tuned nothing)")
+    ap.add_argument("--max-past-silence-end", type=float, default=None, metavar="MS",
+                    help="revert a refinement that lands more than this many ms past the "
+                         "end of the silence (where audio resumes); such a refinement "
+                         "found a shot change inside the advert. 80 = two frames at 25 fps")
     ap.add_argument("--min-scene-len", type=int, default=None,
                     help="scenedetect only, in frames; unset keeps PySceneDetect's default 15, "
                          "which hides any cut in the first 0.6 s of the window (15 Sep 2026)")
@@ -142,8 +146,11 @@ def main() -> None:
         raise SystemExit("--backend scenedetect requested, but scenedetect/cv2 cannot be imported")
     if a.min_scene_len is not None and refine_backend != "scenedetect":
         raise SystemExit("--min-scene-len only applies to --backend scenedetect")
+    if a.max_past_silence_end is not None and not do_refine:
+        raise SystemExit("--max-past-silence-end has no effect with --no-refine")
     if do_refine:
         print(f"Stage B refinement: on (backend = {refine_backend}, "
+              f"guard {a.max_past_silence_end if a.max_past_silence_end is not None else 'off'}, "
               f"min_scene_len {a.min_scene_len if a.min_scene_len is not None else 'default'}, "
               f"window {a.refine_window}s)\n")
 
@@ -190,6 +197,7 @@ def main() -> None:
     planned = made = 0
     plan_rows = []          # cut ledger: one row per advert (Stage A cut, Stage B shift, status)
     n_refined = 0
+    n_reverted = 0
     for it in kept:
         idx, T, hits, nb = it["idx"], it["T"], it["hits"], it["nb"]
         ads = idx_ads.get(idx, [])
@@ -229,9 +237,31 @@ def main() -> None:
                 s_b, shift, status = refine_start(
                     a.recording, s_a, a.refine_window, a.refine_threshold,
                     backend=refine_backend, min_scene_len=a.min_scene_len)
-                n_refined += status == "refined"
                 if status.startswith("error"):
                     print(f"   [refine failed, falling back to silence midpoint] {status}")
+                # --- Guard: a refined start must not run far past the silence ---
+                # The end of the silence is when audio resumes, which comes from the
+                # audio and owes nothing to the picture detector. An advert's first
+                # frame cannot sit far beyond it, so a refinement that lands there
+                # found a shot change INSIDE the advert, not its boundary. Measured
+                # 19 Sep 2026 on b41_05 (Lidl, 20-00.mp4): the silence midpoint was
+                # correct to one frame, and both backends pushed the cut 17 frames
+                # into the advert, giving its opening to the previous clip. Over 361
+                # cut points, reverting the 16-20 cuts that breach this guard cut the
+                # mean slot deviation by about 30% (ffmpeg .195 -> .140, scenedetect
+                # .208 -> .140) and raised the share within 0.2 s by 6-10 points.
+                # 中文：静音结束 = 声音恢复，来自音频，与画面检测器无关。真首帧不可能
+                # 远晚于它；落在那之后的"精修"找到的是广告内部的镜头切换。据此退回
+                # Stage A 中点。2026-09-19 用 b41_05（Lidl）人工逐帧确认了这一机制。
+                if (status == "refined" and hits[i] is not None
+                        and a.max_past_silence_end is not None
+                        and s_b > hits[i]["end"] + a.max_past_silence_end / 1000.0):
+                    past_ms = (s_b - hits[i]["end"]) * 1000
+                    print(f"   [reverted: refined start ran {past_ms:.0f} ms past the "
+                          f"silence end] {os.path.basename(a.recording)} break {idx} pos {i + 1}")
+                    s_b, shift, status = s_a, 0.0, "reverted-past-silence"
+                    n_reverted += 1
+                n_refined += status == "refined"
             starts.append((s_a, s_b))
             shifts.append(shift)
             statuses.append(status)
@@ -313,6 +343,9 @@ def main() -> None:
     if do_refine:
         print(f"refinement: {n_refined}/{planned} cut points pushed forward "
               f"(the rest were already clean; no scene change means no change)")
+        if a.max_past_silence_end is not None:
+            print(f"guard: {n_reverted} refinement(s) reverted for running more than "
+                  f"{a.max_past_silence_end:.0f} ms past the silence end")
     n_sched = sum(1 for r in plan_rows if r.get("start_source") == "schedule")
     if plan_rows:
         print(f"start provenance: {len(plan_rows) - n_sched} from a matched silence, "
