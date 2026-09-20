@@ -1,0 +1,435 @@
+<title>Advert Boundary Pipeline</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400&display=swap">
+<style>
+  :root {
+    --paper: #f5f6f3;
+    --surface: #ffffff;
+    --surface-2: #eceee8;
+    --ink: #14212b;
+    --ink-soft: #55636d;
+    --line: #d7dbd3;
+    --line-strong: #b9c0b6;
+    --audio: #1d6fb8;
+    --audio-soft: #d3e2f0;
+    --picture: #a8327d;
+    --picture-soft: #f2d9e9;
+    --sched: #6b7f3f;
+    --sched-soft: #e2e9cf;
+    --good: #2e7d5b;
+    --warn: #c08a2e;
+    --bad: #b4432e;
+    --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --serif: "Source Serif 4", Georgia, serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0f1519; --surface: #161e24; --surface-2: #1d272e;
+      --ink: #e8ede9; --ink-soft: #9aa8ae; --line: #2a353d; --line-strong: #3d4a53;
+      --audio: #63a8e0; --audio-soft: #1b3b52;
+      --picture: #dd7cba; --picture-soft: #3f1f35;
+      --sched: #a9c169; --sched-soft: #2b3520;
+      --good: #63b28c; --warn: #d9ab5c; --bad: #d87a63;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0f1519; --surface: #161e24; --surface-2: #1d272e;
+    --ink: #e8ede9; --ink-soft: #9aa8ae; --line: #2a353d; --line-strong: #3d4a53;
+    --audio: #63a8e0; --audio-soft: #1b3b52;
+    --picture: #dd7cba; --picture-soft: #3f1f35;
+    --sched: #a9c169; --sched-soft: #2b3520;
+    --good: #63b28c; --warn: #d9ab5c; --bad: #d87a63;
+  }
+
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.5; }
+  .wrap { max-width: 66rem; margin: 0 auto; padding-inline: 20px; padding-block: 36px 64px; }
+  h1 { font-size: clamp(1.8rem, 4.4vw, 2.5rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 10px; text-wrap: balance; }
+  h2 { font-size: 1.1rem; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .lede { font-family: var(--serif); font-size: 1.05rem; color: var(--ink-soft); max-width: 34rem; margin: 0; }
+  .label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-soft); }
+  .cap { font-size: 0.85rem; color: var(--ink-soft); margin: 8px 0 0; max-width: 40rem; }
+  .cap b { color: var(--ink); font-weight: 600; }
+  .mono, code { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  section { margin-top: 44px; }
+  .sechead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .sechead .label { margin-left: auto; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 24px; }
+  .stat { background: var(--surface); padding: 12px 14px; }
+  .stat b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.4rem; font-weight: 500; display: block; line-height: 1.15; }
+  .stat span { font-size: 0.76rem; color: var(--ink-soft); }
+
+  .panel { border: 1px solid var(--line); background: var(--surface); }
+  .scroller { overflow-x: auto; }
+  .pad { padding: 18px 16px; }
+
+  /* signal key */
+  .signals { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 18px; font-size: 0.8rem; color: var(--ink-soft); }
+  .sig { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.a { background: var(--audio); } .dot.p { background: var(--picture); } .dot.s { background: var(--sched); }
+
+  /* flow */
+  .flow { display: flex; min-width: 880px; align-items: stretch; }
+  .step { flex: 1; padding: 0 14px; border-left: 1px solid var(--line); position: relative; }
+  .step:first-child { border-left: 0; padding-left: 0; }
+  .step .tag { font-size: 0.66rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .step h3 { font-size: 0.92rem; margin: 6px 0 4px; font-weight: 600; }
+  .step p { font-size: 0.8rem; color: var(--ink-soft); margin: 0; }
+  .step svg { display: block; margin-top: 10px; }
+  .tag.a { color: var(--audio); } .tag.p { color: var(--picture); } .tag.s { color: var(--sched); }
+
+  /* interactive timeline */
+  .modes { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--line); align-items: center; }
+  .ctrl { font: 500 0.82rem var(--sans); padding: 6px 12px; border: 1px solid var(--line-strong); background: transparent; color: var(--ink-soft); cursor: pointer; border-radius: 2px; }
+  .ctrl[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .ctrl:focus-visible { outline: 2px solid var(--audio); outline-offset: 2px; }
+  .track { position: relative; width: 960px; height: 216px; margin: 18px 16px 4px; }
+  .band { position: absolute; top: 58px; height: 44px; background: var(--audio-soft); border-inline: 1px solid var(--audio); }
+  .clip { position: absolute; top: 58px; height: 44px; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: 2px; display: flex; align-items: center; justify-content: center; overflow: hidden; transition: left 420ms ease, width 420ms ease; }
+  .clip span { font-size: 0.72rem; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cutline { position: absolute; top: 46px; height: 68px; width: 2px; background: var(--picture); transition: left 420ms ease; }
+  .cutline.stagea { background: var(--audio); }
+  .cutline::after { content: ""; position: absolute; top: -5px; left: -3px; width: 8px; height: 8px; background: inherit; transform: rotate(45deg); }
+  .truthline { position: absolute; top: 38px; height: 84px; border-left: 2px dashed var(--ink); }
+  .truth-tag { position: absolute; top: 16px; font-size: 0.68rem; font-weight: 600; white-space: nowrap; }
+  .dur { position: absolute; top: 114px; text-align: center; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.78rem; transition: left 420ms ease, width 420ms ease; }
+  .dur small { display: block; font-size: 0.66rem; }
+  .dur.ok { color: var(--good); } .dur.warnish { color: var(--warn); } .dur.off { color: var(--bad); font-weight: 500; }
+  .axis { position: absolute; top: 166px; left: 0; right: 0; border-top: 1px solid var(--line); }
+  .tick { position: absolute; top: 0; font-family: var(--mono); font-size: 0.7rem; color: var(--ink-soft); padding: 5px 0 0 5px; border-left: 1px solid var(--line); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 0.75rem; color: var(--ink-soft); }
+  .key { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 14px; height: 10px; display: inline-block; }
+  .sw.silence { background: var(--audio-soft); border-inline: 2px solid var(--audio); }
+  .sw.cutA { background: var(--audio); height: 12px; width: 2px; }
+  .sw.cutB { background: var(--picture); height: 12px; width: 2px; }
+  .sw.truth { border-left: 2px dashed var(--ink); height: 12px; width: 2px; }
+
+  /* variant comparison */
+  .variants { display: grid; gap: 0; }
+  .vrow { display: grid; grid-template-columns: 1.8rem 1fr 6.5rem; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .vrow:first-child { border-top: 0; }
+  .vrow.win { background: var(--surface-2); }
+  .vname { font-family: var(--mono); font-size: 0.9rem; }
+  .vnum { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.82rem; text-align: right; }
+  .vnum small { color: var(--ink-soft); display: block; font-size: 0.7rem; }
+
+  /* mechanism bars */
+  .mech { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+  .mbar { display: grid; grid-template-columns: 5.4rem 1fr 3.4rem; gap: 10px; align-items: center; font-size: 0.78rem; padding: 4px 0; }
+  .mtrack { background: var(--surface-2); height: 14px; }
+  .mfill { height: 100%; background: var(--picture); min-width: 2px; display: block; }
+  .mfill.dim { background: var(--line-strong); }
+  .mval { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+  /* year chart */
+  .brow { display: grid; grid-template-columns: 3rem 1fr 5.4rem; gap: 12px; align-items: center; padding: 4px 0; font-family: var(--mono); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+  .btrack { background: var(--surface-2); height: 15px; }
+  .bfill { height: 100%; background: var(--good); min-width: 2px; display: block; }
+  .bfill.weak { background: var(--bad); }
+  .brow .n { color: var(--ink-soft); font-size: 0.72rem; }
+
+  /* evidence */
+  .layers { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .layer { border: 1px solid var(--line); background: var(--surface); padding: 14px; border-top-width: 3px; }
+  .layer.l1 { border-top-color: var(--picture); }
+  .layer.l2 { border-top-color: var(--audio); }
+  .layer.l3 { border-top-color: var(--ink); }
+  .layer h3 { margin: 6px 0 4px; font-size: 0.95rem; }
+  .layer p { margin: 0; font-size: 0.82rem; color: var(--ink-soft); }
+  .layer .blind { display: block; margin-top: 10px; font-size: 0.78rem; color: var(--bad); }
+
+  .ledger { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .cell { background: var(--surface); padding: 10px 12px; }
+  .cell code { font-size: 0.72rem; display: block; color: var(--ink); }
+  .cell span { font-size: 0.75rem; color: var(--ink-soft); }
+
+  footer { margin-top: 52px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.8rem; color: var(--ink-soft); max-width: 42rem; }
+  @media (prefers-reduced-motion: reduce) { .clip, .cutline, .dur { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="label">Corpus construction · UK television advertising</span>
+    <h1>Cutting single adverts out of broadcast recordings</h1>
+    <p class="lede">The audio says roughly where an advert starts, the schedule decides whether to believe it, the picture sharpens the frame. No machine learning touches the boundaries.</p>
+    <div class="stats">
+      <div class="stat"><b>1,670</b><span>recordings processed</span></div>
+      <div class="stat"><b>24,944</b><span>cut points</span></div>
+      <div class="stat"><b>1.0</b><span>frame median deviation</span></div>
+      <div class="stat"><b>74%</b><span>within 0.2 s of slot</span></div>
+    </div>
+    <div class="signals">
+      <span class="sig"><i class="dot a"></i> audio signal</span>
+      <span class="sig"><i class="dot s"></i> broadcast schedule</span>
+      <span class="sig"><i class="dot p"></i> picture signal</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sechead"><h2>The chain</h2><span class="label">four steps, three signals</span></div>
+    <div class="panel scroller">
+      <div class="pad flow">
+        <div class="step">
+          <span class="tag a">audio</span>
+          <h3>Silences</h3>
+          <p>Hundreds per recording. Speech pauses count too, so silence alone is worthless.</p>
+          <svg viewBox="0 0 190 44" width="190" height="44" role="img" aria-label="An audio track with several gaps">
+            <rect x="0" y="14" width="190" height="16" fill="var(--audio-soft)"></rect>
+            <g fill="var(--audio)">
+              <rect x="6" y="8" width="3" height="28"></rect><rect x="13" y="12" width="3" height="20"></rect>
+              <rect x="20" y="5" width="3" height="34"></rect><rect x="27" y="14" width="3" height="16"></rect>
+              <rect x="34" y="10" width="3" height="24"></rect>
+              <rect x="62" y="9" width="3" height="26"></rect><rect x="69" y="13" width="3" height="18"></rect>
+              <rect x="76" y="6" width="3" height="32"></rect><rect x="83" y="12" width="3" height="20"></rect>
+              <rect x="118" y="11" width="3" height="22"></rect><rect x="125" y="7" width="3" height="30"></rect>
+              <rect x="132" y="14" width="3" height="16"></rect>
+              <rect x="164" y="9" width="3" height="26"></rect><rect x="171" y="13" width="3" height="18"></rect>
+              <rect x="178" y="10" width="3" height="24"></rect>
+            </g>
+            <g fill="var(--surface)" stroke="var(--audio)" stroke-dasharray="2 2">
+              <rect x="42" y="14" width="16" height="16"></rect>
+              <rect x="94" y="14" width="18" height="16"></rect>
+              <rect x="142" y="14" width="18" height="16"></rect>
+            </g>
+          </svg>
+        </div>
+        <div class="step">
+          <span class="tag s">schedule</span>
+          <h3>Fingerprint match</h3>
+          <p>The break's slot lengths slide along until the whole pattern lands on silences.</p>
+          <svg viewBox="0 0 190 44" width="190" height="44" role="img" aria-label="A pattern of slot lengths aligned onto the gaps">
+            <g fill="var(--surface)" stroke="var(--audio)" stroke-dasharray="2 2">
+              <rect x="42" y="14" width="16" height="16"></rect>
+              <rect x="94" y="14" width="18" height="16"></rect>
+              <rect x="142" y="14" width="18" height="16"></rect>
+            </g>
+            <g stroke="var(--sched)" stroke-width="2">
+              <line x1="50" y1="6" x2="50" y2="38"></line>
+              <line x1="103" y1="6" x2="103" y2="38"></line>
+              <line x1="151" y1="6" x2="151" y2="38"></line>
+            </g>
+            <g fill="var(--sched)" font-family="var(--mono)" font-size="9">
+              <text x="60" y="12">20 s</text><text x="113" y="12">30 s</text>
+            </g>
+            <line x1="50" y1="22" x2="103" y2="22" stroke="var(--sched)" stroke-width="1"></line>
+            <line x1="103" y1="22" x2="151" y2="22" stroke="var(--sched)" stroke-width="1"></line>
+          </svg>
+        </div>
+        <div class="step">
+          <span class="tag p">picture</span>
+          <h3>First-frame refine</h3>
+          <p>The midpoint falls a few frames early. Move to the first scene change within one second.</p>
+          <svg viewBox="0 0 190 44" width="190" height="44" role="img" aria-label="A cut moving from the midpoint to the first scene change">
+            <rect x="30" y="14" width="40" height="16" fill="var(--surface)" stroke="var(--audio)" stroke-dasharray="2 2"></rect>
+            <rect x="70" y="14" width="118" height="16" fill="var(--picture-soft)"></rect>
+            <line x1="50" y1="8" x2="50" y2="36" stroke="var(--audio)" stroke-width="2"></line>
+            <line x1="70" y1="8" x2="70" y2="36" stroke="var(--picture)" stroke-width="2"></line>
+            <path d="M54 22 L66 22 M62 18 L66 22 L62 26" fill="none" stroke="var(--picture)" stroke-width="1.5"></path>
+            <text x="76" y="12" fill="var(--picture)" font-size="9">first frame</text>
+          </svg>
+        </div>
+        <div class="step">
+          <span class="tag a">audio</span>
+          <h3>Silence guard</h3>
+          <p>A cut landing past the return of sound found a shot change inside the advert. Revert it.</p>
+          <svg viewBox="0 0 190 44" width="190" height="44" role="img" aria-label="A cut that overshoots the end of the silence is reverted">
+            <rect x="24" y="14" width="34" height="16" fill="var(--surface)" stroke="var(--audio)" stroke-dasharray="2 2"></rect>
+            <rect x="58" y="14" width="130" height="16" fill="var(--picture-soft)"></rect>
+            <line x1="58" y1="4" x2="58" y2="40" stroke="var(--audio)" stroke-width="1.5"></line>
+            <text x="62" y="11" fill="var(--audio)" font-size="9">sound returns</text>
+            <line x1="120" y1="12" x2="120" y2="36" stroke="var(--bad)" stroke-width="2"></line>
+            <path d="M116 38 L104 38 M110 34 L104 38 L110 42" fill="none" stroke="var(--bad)" stroke-width="1.5"></path>
+            <line x1="41" y1="12" x2="41" y2="36" stroke="var(--audio)" stroke-width="2"></line>
+            <text x="126" y="24" fill="var(--bad)" font-size="9">reverted</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>One break, three rule sets</h2><span class="label">ITV1 HD · 26 Mar 2024 · break 41</span></div>
+    <div class="panel">
+      <div class="modes" role="group" aria-label="Rule set">
+        <button class="ctrl" aria-pressed="false" data-mode="a">Stage A only</button>
+        <button class="ctrl" aria-pressed="false" data-mode="b">+ refinement</button>
+        <button class="ctrl" aria-pressed="true" data-mode="c">+ silence guard</button>
+        <span class="label" id="mode-caption" style="margin-left:auto"></span>
+      </div>
+      <div class="scroller"><div class="track" id="track"></div></div>
+      <div class="legend">
+        <span class="key"><i class="sw silence"></i> detected silence</span>
+        <span class="key"><i class="sw cutA"></i> cut from audio</span>
+        <span class="key"><i class="sw cutB"></i> cut moved by picture</span>
+        <span class="key"><i class="sw truth"></i> first frame confirmed by eye</span>
+      </div>
+    </div>
+    <p class="cap" id="explain"></p>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Both ends must be the same kind of point</h2><span class="label">12 recordings · 361 cuts</span></div>
+    <div class="panel pad">
+      <div class="variants" id="variants"></div>
+    </div>
+    <p class="cap">A clip's length is a difference between two instants: refine only the start and the length absorbs the <b>next</b> advert's correction as error.</p>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>What counts as evidence</h2><span class="label">three layers, three blind spots</span></div>
+    <div class="layers">
+      <div class="layer l1">
+        <span class="label">every cut · automatic</span>
+        <h3>Slot consistency</h3>
+        <p>Clip length against the slot lengths the advertising market sells.</p>
+        <span class="blind">Blind to a shift applied to every cut: it cancels in a difference.</span>
+      </div>
+      <div class="layer l2">
+        <span class="label">every cut · automatic</span>
+        <h3>Return of sound</h3>
+        <p>Where the cut sits relative to the end of the silence.</p>
+        <span class="blind">Cannot tell an early cut from audio that fades in late.</span>
+      </div>
+      <div class="layer l3">
+        <span class="label">sample · by eye</span>
+        <h3>Frame by frame</h3>
+        <p>The only check that fixes absolute position. Recorded to ±2 frames.</p>
+        <span class="blind">Works on tens of cuts, not tens of thousands.</span>
+      </div>
+    </div>
+    <p class="cap"><b>The Lidl cut needed all three.</b> Layer 1 flagged two clips off slot, layer 2 showed the cut sitting 371 ms past the return of sound, and only the eye settled it: the advert began 17 frames earlier, and two independently written detectors had made the same mistake.</p>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>Where it stops working</h2><span class="label">median deviation by year</span></div>
+    <div class="panel pad"><div id="chart"></div></div>
+    <p class="cap">Schedule alignment is identical in every year. What changes is the picture: recent adverts often open without a hard cut, so the detector finds nothing to move to — and when it does move, it has found a shot change inside the advert.</p>
+    <div class="panel pad" style="margin-top:14px">
+      <div class="mech">
+        <div>
+          <span class="label">cuts where no scene change is found</span>
+          <div class="mbar"><span>2022–24</span><span class="mtrack"><i class="mfill dim" style="width:24%"></i></span><span class="mval">24%</span></div>
+          <div class="mbar"><span>2025–26</span><span class="mtrack"><i class="mfill" style="width:55%"></i></span><span class="mval">55%</span></div>
+        </div>
+        <div>
+          <span class="label">how far a refinement moves the cut</span>
+          <div class="mbar"><span>2022–24</span><span class="mtrack"><i class="mfill dim" style="width:22%"></i></span><span class="mval">100 ms</span></div>
+          <div class="mbar"><span>2025–26</span><span class="mtrack"><i class="mfill" style="width:92%"></i></span><span class="mval">410 ms</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="cap"><b>The guard makes this self-limiting.</b> On recent material refinement scores 0.280 s, the guard brings it back to 0.120 s, and not refining at all scores 0.115 s — the picture stage goes inert exactly where its precondition fails, cut by cut, with no need to know what year it is looking at.</p>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>One row per cut</h2><span class="label">why every comparison is cheap</span></div>
+    <div class="ledger">
+      <div class="cell"><code>silence_start_s · silence_end_s</code><span>the silence, as ffmpeg found it</span></div>
+      <div class="cell"><code>start_silence_mid_s</code><span>the audio-only cut point</span></div>
+      <div class="cell"><code>start_s · shift_ms</code><span>the cut used, and how far the picture moved it</span></div>
+      <div class="cell"><code>refine_status</code><span>refined · clean · reverted</span></div>
+      <div class="cell"><code>refine_backend · min_scene_len</code><span>the settings that produced it</span></div>
+      <div class="cell"><code>start_source</code><span>matched silence, or filled from the schedule</span></div>
+    </div>
+    <p class="cap">Raw and derived values sit side by side, so every comparison here is arithmetic over stored rows — no video decoded twice. The guard was simulated on existing ledgers before it was written, and the implementation then reproduced the simulation to the cut.</p>
+  </section>
+
+  <footer>
+    Figures from the full delivered corpus, September 2026. Deviations are measured against the slot lengths sold by UK broadcasters (10 / 15 / 20 / 30 / 40 / 45 / 60 / 90 s), so they express consistency with the schedule rather than absolute accuracy — which rests on frame-by-frame checks on a sample.
+  </footer>
+</div>
+
+<script>
+  var T0 = 2727.6, T1 = 2833.2, W = 960;
+  var adverts = [
+    { name: "Nivea", slot: 20, mid: 2729.50, refined: 2730.32, sil: [2728.40, 2730.60] },
+    { name: "Dunelm", slot: 30, mid: 2750.31, refined: 2750.31, sil: [2749.99, 2750.63] },
+    { name: "McDonald's", slot: 10, mid: 2780.18, refined: 2780.32, sil: [2779.85, 2780.51] },
+    { name: "Skechers", slot: 20, mid: 2790.28, refined: 2790.32, sil: [2789.95, 2790.61] },
+    { name: "Lidl", slot: 20, mid: 2810.34, refined: 2811.00, sil: [2810.01, 2810.67] }
+  ];
+  var BREAK_END = 2830.32, TRUTH = 2810.30, GUARD_MS = 80;
+  var MODES = {
+    a: { cap: "audio only", text: "Cuts sit at the midpoint of each silence — close, but each clip opens on a few frames of the advert before it." },
+    b: { cap: "audio + picture", text: "Three cuts snap onto their slot lengths. Lidl does not: its midpoint was already right, so the detector moved the cut 0.66 s into the advert, stretching Skechers to 20.68 s." },
+    c: { cap: "audio + picture + guard", text: "The Lidl refinement overshoots the return of sound, so it reverts — one frame from the first frame confirmed by eye. Every clip is now within 0.02 s of its slot." }
+  };
+
+  var track = document.getElementById("track"), explain = document.getElementById("explain"),
+      modeCap = document.getElementById("mode-caption"),
+      buttons = Array.prototype.slice.call(document.querySelectorAll(".ctrl"));
+
+  function px(t) { return ((t - T0) / (T1 - T0)) * W; }
+  function starts(mode) {
+    return adverts.map(function (ad) {
+      if (mode === "a") return ad.mid;
+      if (mode === "b") return ad.refined;
+      return (ad.refined - ad.sil[1]) * 1000 > GUARD_MS ? ad.mid : ad.refined;
+    });
+  }
+  function devClass(d) { return d <= 0.08 ? "ok" : (d <= 0.3 ? "warnish" : "off"); }
+
+  function render(mode) {
+    var s = starts(mode), html = "";
+    adverts.forEach(function (ad) {
+      html += '<div class="band" style="left:' + px(ad.sil[0]) + 'px;width:' + Math.max(2, px(ad.sil[1]) - px(ad.sil[0])) + 'px"></div>';
+    });
+    html += '<div class="band" style="left:' + px(BREAK_END) + 'px;width:' + (px(BREAK_END + 1.9) - px(BREAK_END)) + 'px"></div>';
+    s.forEach(function (start, i) {
+      var end = (i + 1 < s.length) ? s[i + 1] : BREAK_END,
+          dur = end - start, dev = Math.abs(dur - adverts[i].slot),
+          left = px(start), width = Math.max(4, px(end) - px(start)),
+          moved = mode !== "a" && Math.abs(start - adverts[i].mid) > 0.005;
+      html += '<div class="clip" style="left:' + left + 'px;width:' + width + 'px"><span>' + adverts[i].name + '</span></div>';
+      html += '<div class="dur ' + devClass(dev) + '" style="left:' + left + 'px;width:' + width + 'px">' +
+              dur.toFixed(2) + ' s<small>' + (dev < 0.005 ? "on slot" : "+" + dev.toFixed(2) + " s") + '</small></div>';
+      html += '<div class="cutline ' + (moved ? "" : "stagea") + '" style="left:' + left + 'px"></div>';
+    });
+    html += '<div class="truthline" style="left:' + px(TRUTH) + 'px"></div>';
+    html += '<div class="truth-tag" style="left:' + (px(TRUTH) - 112) + 'px">Lidl first frame 46:50.300</div>';
+    html += '<div class="axis"></div>';
+    [2730, 2750, 2770, 2790, 2810, 2830].forEach(function (t) {
+      var m = Math.floor(t / 60), sec = t - m * 60;
+      html += '<div class="tick" style="left:' + px(t) + 'px">' + m + ":" + (sec < 10 ? "0" : "") + sec.toFixed(0) + '</div>';
+    });
+    track.innerHTML = html;
+    explain.textContent = MODES[mode].text;
+    modeCap.textContent = MODES[mode].cap;
+    buttons.forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.mode === mode ? "true" : "false"); });
+  }
+  buttons.forEach(function (b) { b.addEventListener("click", function () { render(b.dataset.mode); }); });
+  render("c");
+
+  // variant comparison: draw the two endpoint kinds each rule uses
+  var V = [
+    { n: "A", start: "audio", end: "audio", med: 0.122, pct: "60%" },
+    { n: "B", start: "picture", end: "audio", med: 0.065, pct: "71%" },
+    { n: "C", start: "picture", end: "picture", med: 0.030, pct: "77%" }
+  ];
+  document.getElementById("variants").innerHTML = V.map(function (v, i) {
+    function mark(kind, x) {
+      var c = kind === "audio" ? "var(--audio)" : "var(--picture)";
+      return '<line x1="' + x + '" y1="6" x2="' + x + '" y2="40" stroke="' + c + '" stroke-width="2.5"></line>';
+    }
+    var bar = (v.med / 0.122) * 150;
+    var svg = '<svg viewBox="0 0 430 46" width="100%" height="46" preserveAspectRatio="xMinYMid meet" role="img" aria-label="Rule ' + v.n + '">' +
+      '<rect x="20" y="15" width="150" height="16" fill="var(--surface-2)" stroke="var(--line-strong)"></rect>' +
+      '<rect x="170" y="15" width="110" height="16" fill="var(--surface-2)" stroke="var(--line-strong)"></rect>' +
+      mark(v.start, 20) + mark(v.end, 170) +
+      '<text x="300" y="14" font-size="9" fill="var(--ink-soft)" font-family="var(--sans)">median error</text>' +
+      '<rect x="300" y="19" width="' + Math.max(2, bar * 0.72) + '" height="10" fill="' + (i === 2 ? "var(--good)" : "var(--line-strong)") + '"></rect>' +
+      '</svg>';
+    return '<div class="vrow' + (i === 2 ? " win" : "") + '"><span class="vname">' + v.n + '</span>' + svg +
+      '<span class="vnum">' + v.med.toFixed(3) + ' s<small>' + v.pct + ' within 0.2 s</small></span></div>';
+  }).join("");
+
+  var years = [["2020", 0.042, "2,002"], ["2021", 0.058, "4,103"], ["2022", 0.024, "3,169"],
+               ["2023", 0.003, "3,533"], ["2024", 0.000, "4,713"], ["2025", 0.129, "4,659"], ["2026", 0.138, "2,711"]];
+  document.getElementById("chart").innerHTML = years.map(function (r) {
+    return '<div class="brow"><span>' + r[0] + '</span><span class="btrack"><i class="bfill' +
+      (r[1] > 0.1 ? " weak" : "") + '" style="width:' + Math.max(1.2, (r[1] / 0.14) * 100) + '%"></i></span>' +
+      '<span>' + r[1].toFixed(3) + '<span class="n"> · ' + r[2] + '</span></span></div>';
+  }).join("");
+</script>

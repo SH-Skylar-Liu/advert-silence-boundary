@@ -180,6 +180,8 @@ examples/
   example_cut_ledger.csv  合成台账，没有档案数据也能跑消融
 docs/
   results_2026-09.md      完整测量记录，包括失败的尝试
+  pipeline_explainer.html 单页图解，浏览器直接打开：广告段时间轴可切换
+                          「仅 Stage A / 加精修 / 加护栏」三套规则
 ```
 
 ## 依赖

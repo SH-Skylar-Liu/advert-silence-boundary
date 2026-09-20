@@ -218,6 +218,8 @@ examples/
   example_cut_ledger.csv  synthetic ledger so the ablation runs without archive data
 docs/
   results_2026-09.md      full measurement log, including what failed
+  pipeline_explainer.html single-page walkthrough: open it in a browser. The break
+                          timeline switches between Stage A, refinement and the guard
 ```
 
 ## Requirements
