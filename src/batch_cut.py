@@ -49,6 +49,29 @@ from threading import Lock
 HERE = Path(__file__).resolve().parent
 CUTTER = HERE / "cut_adverts.py"
 
+# Every cut_adverts.py option this driver forwards, in one place: the flag, the
+# attribute argparse stores it under, and whether it is a switch. Listing them
+# three times (parser, command line, run header) is how --refine-threshold came to
+# be missing from the command line until 19 Sep 2026, which made a threshold sweep
+# exit at argument parsing and write no ledgers at all.
+# 中文：把透传给 cut_adverts.py 的选项集中在一处。此前它们分散在三个地方（解析、拼命令、
+# 打印参数），--refine-threshold 就是这样漏掉的，导致阈值扫描直接退出、不产出台账。
+PASSTHROUGH = [
+    ("--noise", "noise", False),
+    ("--min-dur", "min_dur", False),
+    ("--end-mode", "end_mode", False),
+    ("--backend", "backend", False),
+    ("--min-match-rate", "min_match_rate", False),
+    ("--min-matches", "min_matches", False),
+    ("--last-end", "last_end", False),
+    ("--min-scene-len", "min_scene_len", False),
+    ("--refine-threshold", "refine_threshold", False),
+    ("--max-past-silence-end", "max_past_silence_end", False),
+    ("--no-fill-missing", "no_fill_missing", True),
+    ("--dry-run", "dry_run", True),
+    ("--no-refine", "no_refine", True),
+]
+
 
 def pairs(root: Path):
     """Match <name>.mp4 with <name>_metadata.json; report anything unmatched."""
@@ -77,23 +100,14 @@ def run_one(mp4: Path, meta: Path, args, outroot: Path, logdir: Path) -> dict:
 
     outdir.mkdir(parents=True, exist_ok=True)
     cmd = [sys.executable, str(CUTTER), str(mp4), "--metadata", str(meta),
-           "--outdir", str(outdir), "--cut-csv", str(cut_csv),
-           "--noise", str(args.noise), "--min-dur", str(args.min_dur),
-           "--end-mode", args.end_mode, "--backend", args.backend,
-           "--min-match-rate", str(args.min_match_rate), "--min-matches", str(args.min_matches),
-           "--last-end", args.last_end]
-    if args.min_scene_len is not None:
-        cmd += ["--min-scene-len", str(args.min_scene_len)]
-    if args.refine_threshold is not None:
-        cmd += ["--refine-threshold", str(args.refine_threshold)]
-    if args.max_past_silence_end is not None:
-        cmd += ["--max-past-silence-end", str(args.max_past_silence_end)]
-    if args.no_fill_missing:
-        cmd.append("--no-fill-missing")
-    if args.dry_run:
-        cmd.append("--dry-run")
-    if args.no_refine:
-        cmd.append("--no-refine")
+           "--outdir", str(outdir), "--cut-csv", str(cut_csv)]
+    for flag, attr, is_switch in PASSTHROUGH:
+        v = getattr(args, attr)
+        if is_switch:
+            if v:
+                cmd.append(flag)
+        elif v is not None:
+            cmd += [flag, str(v)]
 
     t0 = time.time()
     p = subprocess.run(cmd, capture_output=True, text=True)

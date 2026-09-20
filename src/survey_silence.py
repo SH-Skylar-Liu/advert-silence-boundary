@@ -48,12 +48,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-# On the server the module is silence_detect.py; the local working copy is
-# detect_silence.py. Try both names.
-try:
-    from silence_detect import align, load_breaks, parse_silences, run_silencedetect
-except ImportError:  # pragma: no cover
-    from detect_silence import align, load_breaks, parse_silences, run_silencedetect
+from silence_detect import align, load_breaks, parse_silences, run_silencedetect
 
 FNAME = re.compile(r"^(\d{4})-(\d{2})-(\d{2})_(.+)_(\d{2}):(\d{2}):(\d{2})\.mp4$")
 

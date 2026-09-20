@@ -58,12 +58,7 @@ import os
 import re
 import subprocess
 
-# On the server this module is silence_detect.py; the local working copy is
-# detect_silence.py. Try both names.
-try:
-    from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s
-except ImportError:  # pragma: no cover
-    from detect_silence import run_silencedetect, parse_silences, load_breaks, align, hms_to_s
+from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s
 
 from refine_first_frame import HAVE_SCENEDETECT, refine_start
 

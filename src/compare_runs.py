@@ -35,14 +35,11 @@ import csv
 import statistics
 from collections import defaultdict
 
-# Slot lengths sold by UK broadcasters; the same list compare_end_modes.py uses.
-# 中文：英国电视广告的固定档位，与 compare_end_modes.py 保持一致。
-SLOTS = [10, 15, 20, 30, 40, 45, 60, 90]
-
-
-def deviation(duration: float) -> float:
-    """Absolute difference between a clip's duration and the nearest slot."""
-    return min(abs(duration - s) for s in SLOTS)
+# One definition of the slot metric, in compare_end_modes.py; restating it here
+# would let the two scripts drift apart and report different numbers.
+# 中文：档位指标只定义一次（在 compare_end_modes.py），在此重写会让两个脚本各自漂移、
+# 给出不一致的数字。
+from compare_end_modes import deviation
 
 
 def load(path: str) -> list[dict]:

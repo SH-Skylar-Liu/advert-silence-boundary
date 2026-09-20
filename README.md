@@ -73,6 +73,33 @@ ITV2), 361 cut points; all-or-nothing break acceptance (`--min-match-rate 1
 **Current configuration:** `--backend scenedetect --min-scene-len 1
 --max-past-silence-end 80`.
 
+### Across the delivered corpus
+
+All 1,670 delivered source recordings, run 20 September 2026 with the configuration
+above: **24,944 cut points** from 1,456 recordings (the other 214 produced none under
+all-or-nothing break acceptance). Median deviation from the nearest slot length
+**0.041 s (1.0 frame)**, **74%** within 0.2 s, A → C 2.8×. Report the median and the
+share within 0.2 s rather than the mean: 54 clips (0.2%) run longer than 120 s from
+alignment errors and drag the mean to 1.9 s.
+
+| Year | cuts | median | <0.2 s | refined | reverted by the guard |
+|---|---|---|---|---|---|
+| 2020 | 2,002 | 0.042 s | 79% | 41% | 142 |
+| 2021 | 4,103 | 0.058 s | 77% | 32% | 333 |
+| 2022 | 3,169 | 0.024 s | 80% | 67% | 171 |
+| 2023 | 3,533 | 0.003 s | 83% | 73% | 107 |
+| **2024** | 4,713 | **0.000 s** | **82%** | 74% | 105 |
+| **2025** | 4,659 | **0.129 s** | 61% | **30%** | **872** |
+| **2026** | 2,711 | **0.138 s** | 59% | **21%** | **616** |
+
+The method is at its strongest on 2022-2024 material and degrades from 2025, where
+adverts often open without a hard cut: the refinement fires on a fifth to a third of
+cut points instead of three quarters, and the guard reverts five to eight times as
+many. Stage A is unchanged across every year, so the schedule-to-silence alignment is
+not what degrades. Channel differences follow the same pattern and are confounded with
+it — `ITV1` without the HD suffix, the worst channel at 0.160 s, appears only in
+2025-2026.
+
 ### Cut accuracy
 
 UK television advertising is sold in fixed slot lengths, so the scheduled duration of
