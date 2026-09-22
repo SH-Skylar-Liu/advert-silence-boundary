@@ -17,10 +17,6 @@ each frame's presentation time, and where the build has `drawtext` the time is
 painted into the picture too. The workstation's ffmpeg has no drawtext (no
 libfreetype), so there the caption is the authoritative label.
 
-中文：人工真值只需要回答一个问题——广告的第一帧是哪一帧。在播放器里逐帧翻既慢又容易看错
-（广告之间常有黑场或渐变）。本脚本把切点前后的每一帧导出成一页缩略图。时间一律来自 ffmpeg：
-showinfo 报出每帧的显示时间；若该 ffmpeg 带 drawtext，则同时烧进画面。
-工作站上的 ffmpeg 没有 drawtext，因此以图注为准。
 
 Usage
 -----
@@ -69,11 +65,7 @@ times reported by ffmpeg ({label_src})</p>
 
 
 def has_drawtext() -> bool:
-    """Is ffmpeg built with drawtext? The workstation's build is not (no libfreetype).
-
-    中文：本机 ffmpeg 是否带 drawtext 滤镜。工作站上的构建没有（缺 libfreetype），
-    因此时间戳改由 showinfo 报出、写进图注。
-    """
+    """Is ffmpeg built with drawtext? The workstation's build is not (no libfreetype)."""
     r = subprocess.run([FFMPEG, "-hide_banner", "-filters"],
                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     return " drawtext " in (r.stdout or "")
@@ -87,10 +79,6 @@ def extract(recording: str, start: float, dur: float, outdir: str, width: int,
     where that filter exists, and `showinfo` reports every frame's pts on stderr
     either way. Times are read from that report, not assumed from a frame rate, so
     a variable frame rate or an inexact seek cannot silently mislabel a thumbnail.
-
-    中文：时间戳来自 ffmpeg 本身——有 drawtext 就画进画面，同时始终用 showinfo
-    读出每帧的 pts。图注的时间取自该报告，而不是按帧率推算，因此可变帧率或定位
-    不精确都不会导致贴错标签。
     """
     chain = []
     if burn:
@@ -107,8 +95,6 @@ def extract(recording: str, start: float, dur: float, outdir: str, width: int,
     # -fps_mode passthrough keeps every decoded frame, one JPEG each. It replaced
     # -vsync, which ffmpeg 9 (the build on the workstation) no longer accepts, so
     # fall back to the old spelling for older ffmpeg rather than requiring one.
-    # 中文：-fps_mode passthrough 保留每一帧；它取代了 -vsync，新版 ffmpeg 已不接受
-    # -vsync，旧版则只认 -vsync，故两种都试。
     err = ""
     for mode in (["-fps_mode", "passthrough"], ["-vsync", "0"]):
         r = subprocess.run(base + mode + tail, stderr=subprocess.PIPE, text=True)
@@ -122,7 +108,6 @@ def extract(recording: str, start: float, dur: float, outdir: str, width: int,
 
     # showinfo prints one line per frame; pts_time is relative to the seek point,
     # so the absolute time in the recording is start + pts_time.
-    # 中文：showinfo 每帧一行，pts_time 相对定位点，故绝对时间 = start + pts_time。
     times = [start + float(m) for m in re.findall(r"pts_time:([0-9.]+)", err)]
     names = sorted(os.listdir(outdir))
     if len(times) != len(names):        # keep the pairing honest rather than guessing
@@ -144,8 +129,8 @@ def main() -> None:
 
     at = a.at
     if at is None:
-        # Look the cut point up in a ledger, so the window is centred on exactly the
-        # point the pipeline chose. 中文：从台账里查切点，保证窗口正对 pipeline 选的位置。
+        # Look the cut point up in a ledger, so the window is centred on exactly
+        # the point the pipeline chose.
         if not (a.ledger and a.clip):
             sys.exit("give --at, or --ledger together with --clip")
         for row in csv.DictReader(open(a.ledger, encoding="utf-8", newline="")):
@@ -169,8 +154,6 @@ def main() -> None:
             # Prefer the time ffmpeg reported for this very frame; fall back to a
             # nominal 25 fps grid only when the report could not be paired up, and
             # mark those captions with ~ so an estimate is never read as measured.
-            # 中文：优先用 ffmpeg 为该帧报出的时间；只有无法一一对应时才按 25 fps 推算，
-            # 并在图注前加 ~ 标明是估计值，避免把推算当实测。
             if times:
                 t, mark = times[i], ""
             else:

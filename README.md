@@ -1,6 +1,6 @@
 # Advert boundary detection — silence + scene-change pipeline
 
-**Version 1.6** (19 Sep 2026) · English · [中文](README.zh-CN.md)
+**Version 1.7** (20 Sep 2026)
 
 > ⚠️ **PRIVATE REPOSITORY — INTERNAL PATHS INCLUDED.**
 > Commands and defaults in this repository refer to real BFI server paths and account

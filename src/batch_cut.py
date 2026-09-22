@@ -54,8 +54,6 @@ CUTTER = HERE / "cut_adverts.py"
 # three times (parser, command line, run header) is how --refine-threshold came to
 # be missing from the command line until 19 Sep 2026, which made a threshold sweep
 # exit at argument parsing and write no ledgers at all.
-# 中文：把透传给 cut_adverts.py 的选项集中在一处。此前它们分散在三个地方（解析、拼命令、
-# 打印参数），--refine-threshold 就是这样漏掉的，导致阈值扫描直接退出、不产出台账。
 PASSTHROUGH = [
     ("--noise", "noise", False),
     ("--min-dur", "min_dur", False),
@@ -151,7 +149,6 @@ def main() -> None:
     ap.add_argument("--min-scene-len", type=int, default=None)
     # Missing here until 19 Sep 2026, so a threshold sweep run through this driver
     # exited at argument parsing and wrote no ledgers at all.
-    # 中文：此项曾缺失，导致用本驱动做阈值扫描时在参数解析处直接退出、不产出任何台账。
     ap.add_argument("--refine-threshold", type=float, default=None)
     ap.add_argument("--max-past-silence-end", type=float, default=80.0, metavar="MS",
                     help="silence guard, in ms; 0 disables it (pre-19-Sep-2026 behaviour)")

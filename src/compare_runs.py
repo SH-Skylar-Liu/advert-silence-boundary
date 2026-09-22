@@ -17,10 +17,6 @@ Two questions, both answered from the ledgers alone (no video decoding):
    cannot see: clip length is a difference, so a shift applied to every cut point
    cancels out. Needs the silence_start_s / silence_end_s columns (v1.3+).
 
-中文：用两份台账比较同一批录制上的两次运行，不重新解码视频。
-（1）**分录制**比较与排期档位的偏差——合并中位数会掩盖"有的录制赢、有的录制输"；
-（2）比较切点相对**静音结束**（声音重新出现）的位置——该位置来自音频，与画面检测器无关，
-因此能发现档位指标看不见的系统性漂移（时长是减法，整体平移会被抵消）。
 
 Usage
 -----
@@ -37,8 +33,6 @@ from collections import defaultdict
 
 # One definition of the slot metric, in compare_end_modes.py; restating it here
 # would let the two scripts drift apart and report different numbers.
-# 中文：档位指标只定义一次（在 compare_end_modes.py），在此重写会让两个脚本各自漂移、
-# 给出不一致的数字。
 from compare_end_modes import deviation
 
 
@@ -49,9 +43,6 @@ def load(path: str) -> list[dict]:
 
 def per_recording(rows: list[dict]) -> dict[str, list[float]]:
     """Variant C deviations, grouped by recording.
-
-    中文：按 (录制, 广告段) 分组后，计算每个切点在变体 C 下的档位偏差；
-    分组必须带上录制名，因为每个录制的广告段编号都从 1 开始。
     """
     by_break: dict[tuple, list[dict]] = defaultdict(list)
     for r in rows:
@@ -68,8 +59,6 @@ def per_recording(rows: list[dict]) -> dict[str, list[float]]:
 
 def drift(rows: list[dict]) -> list[float]:
     """start_s - silence_end_s, in milliseconds. Empty when the column is absent.
-
-    中文：切点减去静音结束时刻（毫秒）。负值 = 切点落在声音恢复之前。
     """
     return sorted((float(r["start_s"]) - float(r["silence_end_s"])) * 1000
                   for r in rows if r.get("silence_end_s"))

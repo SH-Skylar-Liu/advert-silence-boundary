@@ -151,7 +151,6 @@ def main() -> None:
     if a.min_scene_len is not None and refine_backend != "scenedetect":
         raise SystemExit("--min-scene-len only applies to --backend scenedetect")
     # 0 disables the guard, which is how a pre-19-Sep-2026 run is reproduced.
-    # 中文：设为 0 即关闭护栏，用于复现 2026-09-19 之前的运行。
     if a.max_past_silence_end is not None and a.max_past_silence_end <= 0:
         a.max_past_silence_end = None
     if a.max_past_silence_end is not None and not do_refine:
@@ -258,9 +257,6 @@ def main() -> None:
                 # cut points, reverting the 16-20 cuts that breach this guard cut the
                 # mean slot deviation by about 30% (ffmpeg .195 -> .140, scenedetect
                 # .208 -> .140) and raised the share within 0.2 s by 6-10 points.
-                # 中文：静音结束 = 声音恢复，来自音频，与画面检测器无关。真首帧不可能
-                # 远晚于它；落在那之后的"精修"找到的是广告内部的镜头切换。据此退回
-                # Stage A 中点。2026-09-19 用 b41_05（Lidl）人工逐帧确认了这一机制。
                 if (status == "refined" and hits[i] is not None
                         and a.max_past_silence_end is not None
                         and s_b > hits[i]["end"] + a.max_past_silence_end / 1000.0):

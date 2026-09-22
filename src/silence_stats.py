@@ -17,9 +17,6 @@ end of the silence: half the silence, plus however far the first frame sits beyo
 it. Where half a silence already exceeds the window, the search stops inside the
 silence and the true first frame is out of reach by construction.
 
-中文：两条设计依据此前只是几个例子的观察值——「节目→广告段过渡约 2 秒、段内间隔约其一半」，
-以及「1 秒窗口够用」。两者都能只从台账算出来。精修从静音**中点**起算，因此窗口需要覆盖的是
-「中点到静音结束」这段距离；若半个静音已超过窗口，搜索就停在静音内部，真首帧结构上够不到。
 
 Usage
 -----
@@ -67,8 +64,6 @@ def main() -> None:
     # A break's FIRST advert follows the programme-to-break transition; the rest
     # follow an advert-to-advert gap. They are different animals and mixing them is
     # what makes "about two seconds" hard to pin down.
-    # 中文：段内第一条广告前面是节目→广告段的过渡，其余是广告之间的间隔，两者性质不同；
-    # 混在一起统计，正是「约两秒」说不清的原因。
     opening, within = [], []
     half_open, half_within = [], []
     for r in rows:
