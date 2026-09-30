@@ -1,5 +1,7 @@
 # Advert boundary detection — silence + scene-change pipeline
 
+![Cutting single adverts out of broadcast recordings](docs/img/banner.png)
+
 **Version 1.7** (20 Sep 2026)
 
 > ⚠️ **PRIVATE REPOSITORY — INTERNAL PATHS INCLUDED.**
@@ -17,11 +19,38 @@ describe the content of each extracted advert.
 That separation is the point. Corpus construction is deterministic and reproducible;
 interpretation is where the model enters.
 
-
 **Headline result.** Across all 1,670 delivered source recordings: 24,944 cut points,
 median deviation from the nearest advert slot length **0.041 s (1.0 frame)**, **74%**
 within 0.2 s. Strongest on 2022–2024 material; degrades from 2025. Details, ablations
 and caveats in [docs/method.md](docs/method.md).
+
+## How it works
+
+![Four steps, three signals: silences, fingerprint match, first-frame refine, silence guard](docs/img/chain.png)
+
+```mermaid
+flowchart LR
+    CSV[Broadcast schedule<br/>CSV] --> META[csv_to_metadata.py<br/>breaks JSON]
+    MP4[Recording<br/>mp4] --> SIL[silence_detect.py<br/>ffmpeg silencedetect]
+    META --> ALIGN[Stage A<br/>slide schedule onto silences]
+    SIL --> ALIGN
+    ALIGN --> REF[Stage B · refine_first_frame.py<br/>first scene change within 1 s]
+    REF --> GUARD[Silence guard<br/>revert cuts past the silence end]
+    GUARD --> CUT[cut_adverts.py / batch_cut.py<br/>clips + cut ledger]
+    CUT --> EVAL[compare_end_modes.py · compare_runs.py<br/>silence_stats.py · frame_strip.py]
+    CUT --> CAP[vllm_caption.py<br/>describe each advert]
+
+    style CSV fill:#b5c96a,color:#111
+    style META fill:#b5c96a,color:#111
+    style MP4 fill:#5aa9e6,color:#111
+    style SIL fill:#5aa9e6,color:#111
+    style GUARD fill:#5aa9e6,color:#111
+    style REF fill:#e67eb8,color:#111
+    style CAP fill:#999,color:#111
+```
+
+Blue steps use the audio, green the schedule, pink the picture. The boundaries are fixed
+before any model runs; the vision-language model (grey) only describes finished clips.
 
 ---
 
