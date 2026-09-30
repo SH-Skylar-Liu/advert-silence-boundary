@@ -1,0 +1,10 @@
+# Python dependencies for the optional scenedetect backend only.
+# The ffmpeg backend (--backend ffmpeg) needs no Python packages, only ffmpeg and
+# ffprobe on PATH, and Python 3.10+.
+#
+# Install into a virtual environment on local disk (imports stall on NFS):
+#   uv venv ~/venv-scd --python 3.13
+#   uv pip install --python ~/venv-scd/bin/python -r requirements.txt
+# Never install opencv-python and opencv-python-headless into the same environment.
+scenedetect==0.7.1
+opencv-python-headless==5.0.0.93
