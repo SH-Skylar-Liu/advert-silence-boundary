@@ -112,4 +112,4 @@ are in [docs/method.md](docs/method.md#reproducing-the-batch-runs).
 
 ---
 
-Developed by Shihan (Skylar) Liu, King's College London × BFI collaborative PhD.
+Developed by Shihan Liu, King's College London × BFI collaborative PhD.
