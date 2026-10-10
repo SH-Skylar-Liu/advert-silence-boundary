@@ -434,7 +434,7 @@ def cmd_anchor(a):
 
     # simulate: for silences longer than L, start = silence_end - back (end unchanged)
     sim = []
-    for L in [1.0, 1.5, 2.0, 3.0]:
+    for L in [0.0, 0.5, 1.0, 1.5, 2.0, 3.0]:     # 0.0 = every silence, i.e. one rule for all
         d = [x for x in data if x["len"] > L and x["end"] - x["start"] <= 120]
         if not d:
             continue
@@ -547,7 +547,7 @@ def main():
     p = sub.add_parser("anchor")
     p.add_argument("--run", required=True)
     p.add_argument("--out", required=True)
-    p.add_argument("--back", type=float, nargs="+", default=[0.20, 0.28, 0.35],
+    p.add_argument("--back", type=float, nargs="+", default=[0.20, 0.24, 0.28, 0.32, 0.35],
                    help="seconds before the silence end to try as the anchor")
     p.set_defaults(fn=cmd_anchor)
     p = sub.add_parser("selftest")
