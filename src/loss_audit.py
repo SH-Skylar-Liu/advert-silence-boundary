@@ -42,6 +42,7 @@ from pathlib import Path
 
 SLOTS = [10, 15, 20, 30, 40, 45, 60, 90]
 PLACEHOLDER = "SKYADSMART"
+HIST_KEYS = ["1", "2", "3", "4+", "0 matched", "0 (too few boundaries)"]
 DROP_MATCH = re.compile(r"\[drop\] break (\d+) \(.*?\): only (\d+)/(\d+) boundaries")
 DROP_OFFSET = re.compile(r"\[drop\] break (\d+) \(.*?\): offset ")
 SKIP_END = re.compile(r"\[skip\] break (\d+) \(.*?\) advert (\d+): no end silence")
@@ -196,6 +197,7 @@ def cmd_recon(a):
 
     # --- break fate
     fate_rows, fate_count, missing_hist = [], Counter(), Counter()
+    fate_slots = Counter()
     ads_lost_by_missing = Counter()
     for stem, breaks in sched.items():
         for idx, kept in breaks.items():
@@ -205,7 +207,11 @@ def cmd_recon(a):
                 status, n, nb = fate[(stem, idx)]
                 if n is not None:
                     miss = nb - n
-                    key = "0 matched" if n == 0 else (str(miss) if miss <= 3 else "4+")
+                    # miss == 0 means every boundary matched and the break was still
+                    # dropped: it has fewer boundaries than --min-matches, too short a
+                    # pattern to align on.
+                    key = ("0 matched" if n == 0 else "0 (too few boundaries)" if miss == 0
+                           else (str(miss) if miss <= 3 else "4+"))
                     missing_hist[key] += 1
                     ads_lost_by_missing[key] += len(kept)
             elif stem not in stems:
@@ -213,13 +219,14 @@ def cmd_recon(a):
             else:
                 status, n, nb = "no ledger row and no log line", "", ""
             fate_count[status] += 1
+            fate_slots[status] += len(kept)
             fate_rows.append([stem, idx, len(kept), status,
                               "" if n is None else n, "" if nb is None else nb])
     write(out / "break_fate.csv",
           ["recording", "break", "slots", "status", "matched", "boundaries"], fate_rows)
     write(out / "missing_boundaries.csv", ["boundaries_missing", "breaks", "slots_lost"],
           [[k, missing_hist[k], ads_lost_by_missing[k]]
-           for k in ["1", "2", "3", "4+", "0 matched"] if k in missing_hist])
+           for k in HIST_KEYS if k in missing_hist])
 
     # --- loss by stratum (real adverts only)
     strata = []
@@ -277,11 +284,11 @@ def cmd_recon(a):
         f"    of which appeared only once   {lost_once:>8,}",
         "",
         "BREAK FATE",
-    ] + [f"  {k:<34}{v:>8,}" for k, v in fate_count.most_common()] + [
+    ] + [f"  {k:<34}{v:>8,} breaks {fate_slots[k]:>8,} slots" for k, v in fate_count.most_common()] + [
         "",
         "BREAKS DROPPED FOR UNMATCHED BOUNDARIES, by number missing",
-    ] + [f"  missing {k:<10} breaks {missing_hist[k]:>7,}   slots lost {ads_lost_by_missing[k]:>8,}"
-         for k in ["1", "2", "3", "4+", "0 matched"] if k in missing_hist] + [
+    ] + [f"  missing {k:<23} breaks {missing_hist[k]:>7,}   slots lost {ads_lost_by_missing[k]:>8,}"
+         for k in HIST_KEYS if k in missing_hist] + [
         "",
         "LABEL CHECK (ledger unique_id vs collapsed schedule at the same position)",
         f"  ledger rows checked             {sum(1 for s in slots if s['kept']):>8,}",
