@@ -42,6 +42,7 @@ from pathlib import Path
 
 SLOTS = [10, 15, 20, 30, 40, 45, 60, 90]
 PLACEHOLDER = "SKYADSMART"
+GAP_S = 120          # no advert is this long; a longer gap inside a break is two breaks
 HIST_KEYS = ["1", "2", "3", "4+", "0 matched", "0 (too few boundaries)"]
 DROP_MATCH = re.compile(r"\[drop\] break (\d+) \(.*?\): only (\d+)/(\d+) boundaries")
 DROP_OFFSET = re.compile(r"\[drop\] break (\d+) \(.*?\): offset ")
@@ -198,6 +199,7 @@ def cmd_recon(a):
     # --- break fate
     fate_rows, fate_count, missing_hist = [], Counter(), Counter()
     fate_slots = Counter()
+    status_of = {}
     ads_lost_by_missing = Counter()
     for stem, breaks in sched.items():
         for idx, kept in breaks.items():
@@ -220,6 +222,7 @@ def cmd_recon(a):
                 status, n, nb = "no ledger row and no log line", "", ""
             fate_count[status] += 1
             fate_slots[status] += len(kept)
+            status_of[(stem, idx)] = status
             fate_rows.append([stem, idx, len(kept), status,
                               "" if n is None else n, "" if nb is None else nb])
     write(out / "break_fate.csv",
@@ -227,6 +230,28 @@ def cmd_recon(a):
     write(out / "missing_boundaries.csv", ["boundaries_missing", "breaks", "slots_lost"],
           [[k, missing_hist[k], ads_lost_by_missing[k]]
            for k in HIST_KEYS if k in missing_hist])
+
+    # --- breaks whose schedule holds a long gap between consecutive adverts.
+    # No advert runs for minutes, so a gap over GAP_S means the metadata has joined
+    # two separate breaks into one. The last advert before the gap then gets a clip
+    # that runs across the programme (the clips over 120 s), and if either half lies
+    # outside the recording the whole joined break fails the match and is dropped.
+    gap_rows, gap_count, gap_slots = [], Counter(), Counter()
+    for stem, breaks in sched.items():
+        for idx, kept in breaks.items():
+            rels = [r for r, _ in kept]
+            gaps = [y - x for x, y in zip(rels, rels[1:])]
+            if not gaps or (max(gaps) <= GAP_S and min(gaps) >= 0):
+                continue
+            kind = "gap over %d s" % GAP_S if max(gaps) > GAP_S else "start times out of order"
+            st = status_of.get((stem, idx), "?")
+            gap_count[(kind, st)] += 1
+            gap_slots[(kind, st)] += len(kept)
+            gap_rows.append([stem, idx, len(kept), kind, f"{max(gaps):.0f}", f"{min(gaps):.0f}",
+                             1 + sum(g > GAP_S for g in gaps), st])
+    write(out / "gap_breaks.csv",
+          ["recording", "break", "slots", "kind", "max_gap_s", "min_gap_s", "parts", "status"],
+          gap_rows)
 
     # --- loss by stratum (real adverts only)
     strata = []
@@ -290,13 +315,17 @@ def cmd_recon(a):
     ] + [f"  missing {k:<23} breaks {missing_hist[k]:>7,}   slots lost {ads_lost_by_missing[k]:>8,}"
          for k in HIST_KEYS if k in missing_hist] + [
         "",
+        "BREAKS WITH A SCHEDULE GAP (two breaks joined in the metadata, or records out of order)",
+    ] + [f"  {k[0]:<26}{k[1]:<34}{v:>6,} breaks {gap_slots[k]:>7,} slots"
+         for k, v in sorted(gap_count.items(), key=lambda kv: -kv[1])] + [
+        "",
         "LABEL CHECK (ledger unique_id vs collapsed schedule at the same position)",
         f"  ledger rows checked             {sum(1 for s in slots if s['kept']):>8,}",
         f"  mismatches                      {len(mismatch):>8,}",
     ] + [f"    {c:<30}{n:>8,}" for c, n in Counter(m[3] for m in mismatch).most_common()] + [
         "",
         "tables: break_fate.csv  missing_boundaries.csv  loss_by_stratum.csv",
-        "        lost_unique.csv  label_mismatch.csv",
+        "        lost_unique.csv  label_mismatch.csv  gap_breaks.csv",
     ]
     (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
