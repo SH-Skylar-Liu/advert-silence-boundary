@@ -88,6 +88,7 @@ def load_breaks(meta_path: str) -> list:
     for br in meta.get("ad_breaks", []):
         b0 = hms_to_s(br["start_time"])
         bounds = []
+        kept_ads = []          # the advert behind each boundary, in the same order as bounds
         seen_rel = {}          # rel -> advert kept at that instant (collapses duplicates)
         for ad in br.get("adverts", []):
             rel = hms_to_s(ad["start_time"]) - b0
@@ -105,8 +106,10 @@ def load_breaks(meta_path: str) -> list:
                 prev_is_ph = str(prev.get("unique_id", "")).startswith("SKYADSMART")
                 if not (prev_is_ph and not is_placeholder):
                     continue                      # the record already kept wins; drop this one
+                kept_ads = [k for k, b in zip(kept_ads, bounds) if b[1] != rel]
                 bounds = [b for b in bounds if b[1] != rel]   # replace placeholder with real advert
             seen_rel[rel] = ad
+            kept_ads.append(ad)
             name = f"{ad.get('position_in_break', '?')} {ad.get('brand', ad.get('unique_id', '?'))}"
             bounds.append((name, rel))
         if br.get("end_time"):
@@ -114,6 +117,10 @@ def load_breaks(meta_path: str) -> list:
         out.append({
             "label": f"break {br.get('index', '?')} ({br.get('start_time')}-{br.get('end_time')})",
             "bounds": bounds,
+            # Boundary i belongs to adverts[i]. The raw metadata list is NOT in step
+            # with bounds once same-instant records have been collapsed, so anything
+            # that labels a cut point must read the advert from here.
+            "adverts": kept_ads,
         })
     return out
 

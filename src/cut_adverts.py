@@ -175,7 +175,7 @@ def main() -> None:
         wt = hms_to_s(idx_start[idx])
         items.append({"idx": idx, "wt": wt, "T": T, "hits": hits,
                       "nb": len(br["bounds"]), "n": n, "label": br["label"],
-                      "bounds": br["bounds"]})
+                      "bounds": br["bounds"], "ads": br.get("adverts", [])})
     items.sort(key=lambda x: x["wt"])
 
     # offset-consistency + full-match filter
@@ -207,7 +207,13 @@ def main() -> None:
     n_reverted = 0
     for it in kept:
         idx, T, hits, nb = it["idx"], it["T"], it["hits"], it["nb"]
-        ads = idx_ads.get(idx, [])
+        # Labels come from the COLLAPSED advert list, which is in step with the
+        # boundaries. Until 10 Oct 2026 this read the raw metadata list instead, so in
+        # any break where same-instant records had been collapsed every later row
+        # carried the unique_id and brand of the wrong advert: 7,213 of 25,208 ledger
+        # rows in the full strict run (loss_audit.py recon, LABEL CHECK). Cut points
+        # were never affected, only the label written beside them.
+        ads = it["ads"]
 
         # --- Stage B is applied to every START first, so that a clip can end on the
         # NEXT advert's refined start. Refining starts while leaving ends on the
