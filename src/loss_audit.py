@@ -17,6 +17,10 @@ Three subcommands, each writing CSV tables plus a plain-text summary to --out:
            (per-break hit rate, yield at several acceptance rules, and a seeded
            sample of schedule-filled cut points for frame-by-frame checking)
 
+  schedule what is in each schedule file before any alignment: channel in the
+           name against channel in the metadata, runs of break index, breaks split
+           or joined by the First marker (reads metadata only)
+
   offsets  do the breaks of a recording agree on when the recording started?
            (finds breaks dropped by the consistency filter although their offset
            matches the rest of the recording, and kept breaks that do not)
@@ -717,6 +721,98 @@ def cmd_offsets(a):
 
 
 # ---------------------------------------------------------------------------
+def cmd_schedule(a):
+    """What is in each schedule file, before any alignment? Reads metadata only.
+
+    Three things found by hand on 11-12 Oct 2026 are counted here across all files:
+      * the channel in the file name against video_info.channel, and whether the
+        break indices fall into more than one unbroken run (2025-11-30_5_19:42:44
+        holds breaks 68-91 of one channel and 156-172 of another);
+      * breaks that start at the same instant as the next break: a lone record marked
+        First, followed by the rest of the break, also marked First. The lone record
+        is either an addressable placeholder or the real first advert of the break;
+      * breaks holding a gap of more than GAP_S between consecutive adverts.
+    """
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    cross, rows = Counter(), []
+    tot = Counter()
+    for meta in sorted(Path(a.src).rglob("*_metadata.json")):
+        stem = meta.name[: -len("_metadata.json")]
+        d = json.load(open(meta, encoding="utf-8"))
+        name_ch = parse_stem(stem)[1]
+        meta_ch = str((d.get("video_info") or {}).get("channel", "?"))
+        cross[(name_ch, meta_ch)] += 1
+        m = re.search(r"_(\d{2}:\d{2}:\d{2})(?:_|$)", stem)
+        name_t = m.group(1) if m else None
+        brs = sorted(d.get("ad_breaks", []), key=lambda b: int(b.get("index", 0)))
+        tot["files"] += 1
+        tot["breaks"] += len(brs)
+
+        # unbroken runs of break index
+        runs, cur = [], []
+        for b in brs:
+            if cur and int(b["index"]) != int(cur[-1]["index"]) + 1:
+                runs.append(cur)
+                cur = []
+            cur.append(b)
+        if cur:
+            runs.append(cur)
+        named = [i for i, r in enumerate(runs) if any(b.get("start_time") == name_t for b in r)]
+        n_real = lambda r: sum(1 for b in r for ad in b.get("adverts", []) if not is_ph(ad))
+        own = n_real(runs[named[0]]) if named else None
+        other = sum(n_real(r) for i, r in enumerate(runs) if not named or i != named[0])
+        if len(runs) > 1:
+            tot["files with more than one index run"] += 1
+            if named:
+                tot["  of which the file-name break is found in one run"] += 1
+                tot["  real records in the OTHER runs of those files"] += other
+        if name_t and not named:
+            tot["files whose name time matches no break"] += 1
+
+        # same-instant break pairs, and gaps
+        lone_ph = lone_real = gap = 0
+        for b, nxt in zip(brs, brs[1:]):
+            if b.get("start_time") == nxt.get("start_time") and len(b.get("adverts", [])) == 1:
+                if is_ph(b["adverts"][0]):
+                    lone_ph += 1
+                else:
+                    lone_real += 1
+        for b in brs:
+            kept = collapse(b)
+            rels = [r for r, _ in kept]
+            if any(y - x > GAP_S for x, y in zip(rels, rels[1:])):
+                gap += 1
+        single_ph_only = sum(1 for b in brs if b.get("adverts") and all(is_ph(x) for x in b["adverts"]))
+        tot["breaks holding only placeholders"] += single_ph_only
+        tot["lone placeholder ahead of a same-instant break"] += lone_ph
+        tot["lone REAL advert ahead of a same-instant break (break split in two)"] += lone_real
+        tot["breaks with a gap over %d s" % GAP_S] += gap
+        titles = lambda r: "; ".join(sorted({str((b.get("programme_before") or {}).get("title", "?"))
+                                              for b in r}))[:120]
+        rows.append([stem, name_ch, meta_ch, len(brs), len(runs),
+                     " / ".join(f"{r[0]['index']}-{r[-1]['index']}" for r in runs),
+                     "" if not named else f"{runs[named[0]][0]['index']}-{runs[named[0]][-1]['index']}",
+                     "" if own is None else own, other if len(runs) > 1 else 0,
+                     lone_ph, lone_real, gap,
+                     " || ".join(titles(r) for r in runs) if len(runs) > 1 else ""])
+    write(out / "schedule_structure.csv",
+          ["recording", "channel_in_name", "channel_in_metadata", "breaks", "index_runs", "runs",
+           "run_with_name_break", "real_records_in_that_run", "real_records_in_other_runs",
+           "lone_placeholder_pairs", "split_break_pairs", "gap_breaks", "programmes_per_run"], rows)
+
+    lines = [f"source: {a.src}", "", "TOTALS"]
+    lines += [f"  {k:<68}{v:>8,}" for k, v in tot.items()]
+    lines += ["", "CHANNEL IN FILE NAME  vs  video_info.channel   (files)"]
+    lines += [f"  {n:<14} {m:<14} {c:>6,}{'' if n == m else '   <-- differ'}"
+              for (n, m), c in sorted(cross.items(), key=lambda kv: (kv[0][0], -kv[1]))]
+    lines += ["", "table: schedule_structure.csv (one row per recording; programmes_per_run shows",
+              "       the programme titles around each run of breaks where there is more than one)"]
+    (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+
+
+# ---------------------------------------------------------------------------
 def cmd_selftest(_):
     """Synthetic schedule + ledger with known answers. Touches no real data."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -820,6 +916,10 @@ def main():
                    help="read each recording's length with ffprobe and report which scheduled "
                         "breaks fall inside the file")
     p.set_defaults(fn=cmd_offsets)
+    p = sub.add_parser("schedule")
+    p.add_argument("--src", required=True)
+    p.add_argument("--out", required=True)
+    p.set_defaults(fn=cmd_schedule)
     p = sub.add_parser("selftest")
     p.set_defaults(fn=cmd_selftest)
     a = ap.parse_args()
