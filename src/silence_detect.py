@@ -76,7 +76,77 @@ def hms_to_s(t: str) -> float:
     return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
 
 
-def load_breaks(meta_path: str) -> list:
+PLACEHOLDER_PREFIX = "SKYADSMART"
+BREAK_GAP_S = 120.0      # no advert is this long; a longer gap inside a break is two breaks
+
+
+def clean_breaks(ad_breaks: list) -> list:
+    """Repair how the schedule is cut into breaks, before anything is aligned.
+
+    The schedule opens a new break at every record marked First. Three things in the
+    delivered files follow from that and none of them is about the recording
+    (counted over all 1,670 files on 12 Oct 2026):
+
+    1. Sky AdSmart is addressable advertising: the slot is sold again per household,
+       and the schedule logs a placeholder record beside the advert that was
+       broadcast. The placeholder and the broadcast advert at the head of a break are
+       BOTH marked First, so the break is cut in two at its first record. In 1,758
+       breaks the lone record is the placeholder; in 958 it is the real first advert,
+       which then has a single boundary and can never be aligned, while the rest of
+       the break opens on the placeholder and its first clip is labelled as one.
+       -> adjacent breaks with the same start_time are one break: merge them.
+    2. A placeholder never stands for an advert in the recording, and every one of
+       them shares its start_time with a broadcast advert (20,812 of 20,812, measured
+       21 Aug 2026), so removing it removes no boundary.
+       -> drop every placeholder record; drop a break left empty.
+    3. In 231 breaks two consecutive adverts start more than two minutes apart: a
+       break whose first record is not marked First is appended to the one before.
+       -> split a break wherever the gap exceeds BREAK_GAP_S (the longest slot is 90 s).
+
+    Order matters: merge first, while the two halves still share a start_time.
+
+    Returns new break dicts in the input schema. A merged break keeps the index of
+    its first half. The parts of a split break are numbered index*100 + 1, 2, ...,
+    so every break still has a unique integer index and the original is recoverable.
+    Breaks of another channel that some files also list are NOT handled here.
+    """
+    merged = []
+    for br in ad_breaks:
+        if merged and br.get("start_time") == merged[-1].get("start_time"):
+            merged[-1]["adverts"] = merged[-1]["adverts"] + list(br.get("adverts", []))
+            continue
+        nb = dict(br)
+        nb["adverts"] = list(br.get("adverts", []))
+        merged.append(nb)
+
+    out = []
+    for br in merged:
+        ads = [a for a in br["adverts"]
+               if not str(a.get("unique_id", "")).startswith(PLACEHOLDER_PREFIX)]
+        if not ads:
+            continue
+        parts, cur = [], [ads[0]]
+        for prev, a in zip(ads, ads[1:]):
+            if hms_to_s(a["start_time"]) - hms_to_s(prev["start_time"]) > BREAK_GAP_S:
+                parts.append(cur)
+                cur = []
+            cur.append(a)
+        parts.append(cur)
+        if len(parts) == 1:
+            nb = dict(br)
+            nb["adverts"] = ads
+            out.append(nb)
+            continue
+        for k, part in enumerate(parts, 1):
+            nb = dict(br)
+            nb["index"] = int(br.get("index", 0)) * 100 + k
+            nb["start_time"] = part[0]["start_time"]
+            nb["adverts"] = part
+            out.append(nb)
+    return out
+
+
+def load_breaks(meta_path: str, clean: bool = False) -> list:
     """Read metadata.json; return each break's boundaries (relative to break start).
     Each break: {'label': ..., 'bounds': [(name, rel_seconds), ...]}.
     Boundaries = each advert's start (first = programme->break, rest = ad<->ad),
@@ -84,8 +154,11 @@ def load_breaks(meta_path: str) -> list:
     """
     with open(meta_path, encoding="utf-8") as f:
         meta = json.load(f)
+    ad_breaks = meta.get("ad_breaks", [])
+    if clean:
+        ad_breaks = clean_breaks(ad_breaks)
     out = []
-    for br in meta.get("ad_breaks", []):
+    for br in ad_breaks:
         b0 = hms_to_s(br["start_time"])
         bounds = []
         kept_ads = []          # the advert behind each boundary, in the same order as bounds
@@ -121,6 +194,8 @@ def load_breaks(meta_path: str) -> list:
             # with bounds once same-instant records have been collapsed, so anything
             # that labels a cut point must read the advert from here.
             "adverts": kept_ads,
+            "index": br.get("index"),
+            "start_time": br.get("start_time"),
         })
     return out
 

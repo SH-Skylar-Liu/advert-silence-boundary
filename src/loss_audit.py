@@ -49,6 +49,9 @@ import tempfile
 from collections import Counter, defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from silence_detect import clean_breaks      # noqa: E402  (same repair the cutter applies)
+
 SLOTS = [10, 15, 20, 30, 40, 45, 60, 90]
 PLACEHOLDER = "SKYADSMART"
 GAP_S = 120          # no advert is this long; a longer gap inside a break is two breaks
@@ -115,7 +118,10 @@ def load_schedule(src: Path) -> dict:
         stem = meta.name[: -len("_metadata.json")]
         data = json.load(open(meta, encoding="utf-8"))
         breaks = {}
-        for br in data.get("ad_breaks", []):
+        ad_breaks = data.get("ad_breaks", [])
+        if CLEAN:
+            ad_breaks = clean_breaks(ad_breaks)
+        for br in ad_breaks:
             ads = br.get("adverts", [])
             raw["records"] += len(ads)
             raw["placeholders"] += sum(is_ph(a) for a in ads)
@@ -128,6 +134,7 @@ def load_schedule(src: Path) -> dict:
 
 
 raw_ids = Counter()     # every unique_id in the delivered schedule, before collapsing
+CLEAN = False           # set by --clean-schedule: read the schedule as cut_adverts.py did
 
 
 def load_run(run: Path):
@@ -813,6 +820,67 @@ def cmd_schedule(a):
 
 
 # ---------------------------------------------------------------------------
+def cmd_diff(a):
+    """Which adverts does one run cut that the other does not?
+
+    Runs are compared by cut point, not by break number, so a run made with
+    --clean-schedule (whose breaks are merged, split and renumbered) can be set beside
+    one made without. Two cut points in the same recording are the same when they lie
+    within 0.5 s of each other.
+    """
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    def cuts(run):
+        rows, _, stems = load_run(Path(run))
+        by = defaultdict(list)
+        for (stem, _, _), r in rows.items():
+            try:
+                by[stem].append((float(r["start_silence_mid_s"]), str(r.get("unique_id", "")),
+                                 r.get("brand", "")))
+            except (KeyError, ValueError):
+                pass
+        return by, stems
+
+    A, sa = cuts(a.a)
+    B, sb = cuts(a.b)
+    both = sa & sb
+    if a.exclude:
+        both = {k for k in both if not any(x in k for x in a.exclude)}
+    only_a, only_b, same, relabel = [], [], 0, 0
+    for stem in sorted(both):
+        la, lb = sorted(A.get(stem, [])), sorted(B.get(stem, []))
+        used = set()
+        for t, uid, brand in la:
+            j = next((j for j, (t2, _, _) in enumerate(lb) if j not in used and abs(t2 - t) <= 0.5), None)
+            if j is None:
+                only_a.append([stem, f"{t:.2f}", uid, brand])
+            else:
+                used.add(j)
+                same += 1
+                relabel += lb[j][1] != uid
+        only_b += [[stem, f"{t:.2f}", uid, brand] for j, (t, uid, brand) in enumerate(lb) if j not in used]
+    write(out / "only_in_a.csv", ["recording", "start_s", "unique_id", "brand"], only_a)
+    write(out / "only_in_b.csv", ["recording", "start_s", "unique_id", "brand"], only_b)
+    real = lambda rows: [r for r in rows if not r[2].startswith(PLACEHOLDER)]
+    uid = lambda d: {u for stem in both for _, u, _ in d.get(stem, []) if u and not u.startswith(PLACEHOLDER)}
+    ua, ub = uid(A), uid(B)
+    lines = [f"A: {a.a}", f"B: {a.b}", f"recordings in both: {len(both):,}", "",
+             f"cut points in both runs            {same:>7,}",
+             f"  of which labelled differently    {relabel:>7,}",
+             f"cut points only in A               {len(only_a):>7,}   ({len(real(only_a)):,} not placeholders)",
+             f"cut points only in B               {len(only_b):>7,}   ({len(real(only_b)):,} not placeholders)",
+             "",
+             f"unique adverts (by ledger label) A {len(ua):>7,}",
+             f"unique adverts (by ledger label) B {len(ub):>7,}",
+             f"  in A but not in B                {len(ua - ub):>7,}",
+             f"  in B but not in A                {len(ub - ua):>7,}",
+             "", "tables: only_in_a.csv  only_in_b.csv"]
+    (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+
+
+# ---------------------------------------------------------------------------
 def cmd_selftest(_):
     """Synthetic schedule + ledger with known answers. Touches no real data."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -852,7 +920,7 @@ def cmd_selftest(_):
             "[drop] break 2 (10:20:00-None): only 2/3 boundaries matched (67% < 100%, or fewer than 3)\n"
             "[drop] break 3 (10:40:00-None): offset 12.0s inconsistent (expected ~900.0s)\n",
             encoding="utf-8")
-        ns = argparse.Namespace(src=str(src), run=str(run), out=str(Path(tmp) / "o1"), only_run=False, common_with=None, exclude=[])
+        ns = argparse.Namespace(src=str(src), run=str(run), out=str(Path(tmp) / "o1"), only_run=False, common_with=None, exclude=[], clean_schedule=False)
         cmd_recon(ns)
         text = (Path(tmp) / "o1" / "summary.txt").read_text(encoding="utf-8")
         mism = list(csv.reader(open(Path(tmp) / "o1" / "label_mismatch.csv", encoding="utf-8")))
@@ -889,6 +957,9 @@ def main():
                         "the raw-record lines of the summary are then not counted")
     p.add_argument("--exclude", nargs="+", default=[], metavar="NAME",
                    help="leave out recordings whose name contains any of these strings")
+    p.add_argument("--clean-schedule", action="store_true",
+                   help="read the schedule as a --clean-schedule run did (merged, placeholders "
+                        "dropped, split at long gaps); use it to audit such a run")
     p.add_argument("--common-with", metavar="OTHER_RUN",
                    help="count only recordings that this run AND the other run have finished, "
                         "so two sample runs are compared on the same recordings")
@@ -920,9 +991,17 @@ def main():
     p.add_argument("--src", required=True)
     p.add_argument("--out", required=True)
     p.set_defaults(fn=cmd_schedule)
+    p = sub.add_parser("diff")
+    p.add_argument("--a", required=True, help="first run (batch_cut.py --outroot)")
+    p.add_argument("--b", required=True, help="second run")
+    p.add_argument("--out", required=True)
+    p.add_argument("--exclude", nargs="+", default=[], metavar="NAME")
+    p.set_defaults(fn=cmd_diff)
     p = sub.add_parser("selftest")
     p.set_defaults(fn=cmd_selftest)
     a = ap.parse_args()
+    global CLEAN
+    CLEAN = bool(getattr(a, "clean_schedule", False))
     a.fn(a)
 
 

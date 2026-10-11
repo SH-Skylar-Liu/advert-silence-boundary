@@ -109,6 +109,11 @@ def main() -> None:
                          "whose offset disagrees with the previous kept one. recording: fix "
                          "the start of the recording from the fully matched breaks, then "
                          "check every break only where it must be (11 Oct 2026)")
+    ap.add_argument("--clean-schedule", action="store_true",
+                    help="repair the schedule's break segmentation before aligning: merge "
+                         "adjacent breaks that start at the same instant, drop Sky AdSmart "
+                         "placeholder records, split breaks at gaps over two minutes "
+                         "(see silence_detect.clean_breaks; 12 Oct 2026)")
     ap.add_argument("--dry-run", action="store_true", help="print the cut plan, do not cut")
     # --- Stage B (first-frame refinement) and the cut ledger ---
     ap.add_argument("--no-refine", action="store_true",
@@ -177,17 +182,17 @@ def main() -> None:
               f"window {a.refine_window}s)\n")
 
     silences = parse_silences(run_silencedetect(a.recording, a.noise, a.min_dur))
-    breaks = load_breaks(a.metadata)
-    meta = json.load(open(a.metadata, encoding="utf-8"))
-    idx_start = {br.get("index"): br.get("start_time") for br in meta.get("ad_breaks", [])}
-    idx_ads = {br.get("index"): br.get("adverts", []) for br in meta.get("ad_breaks", [])}
+    breaks = load_breaks(a.metadata, clean=a.clean_schedule)
+    if a.clean_schedule:
+        print("schedule: cleaned (same-instant breaks merged, placeholders dropped, "
+              "breaks split at gaps over two minutes)")
 
     # align every break, attach wall-clock, keep for consistency filtering
     items = []
     for br in breaks:
         n, T, hits = align(br["bounds"], silences, a.tol)
-        idx = int(re.search(r"break (\d+)", br["label"]).group(1))
-        wt = hms_to_s(idx_start[idx])
+        idx = int(br["index"])
+        wt = hms_to_s(br["start_time"])
         items.append({"idx": idx, "wt": wt, "T": T, "hits": hits,
                       "nb": len(br["bounds"]), "n": n, "label": br["label"],
                       "bounds": br["bounds"], "ads": br.get("adverts", [])})
