@@ -109,6 +109,10 @@ def main() -> None:
                          "whose offset disagrees with the previous kept one. recording: fix "
                          "the start of the recording from the fully matched breaks, then "
                          "check every break only where it must be (11 Oct 2026)")
+    ap.add_argument("--own-channel", action="store_true",
+                    help="where the schedule lists breaks in more than one run of index, keep "
+                         "only the run holding the break whose start time is in the file name; "
+                         "the other run is another channel (see silence_detect.own_run)")
     ap.add_argument("--clean-schedule", action="store_true",
                     help="repair the schedule's break segmentation before aligning: merge "
                          "adjacent breaks that start at the same instant, drop Sky AdSmart "
@@ -182,7 +186,12 @@ def main() -> None:
               f"window {a.refine_window}s)\n")
 
     silences = parse_silences(run_silencedetect(a.recording, a.noise, a.min_dur))
-    breaks = load_breaks(a.metadata, clean=a.clean_schedule)
+    breaks = load_breaks(a.metadata, clean=a.clean_schedule, own=a.own_channel)
+    if a.own_channel:
+        n_all = len(load_breaks(a.metadata, clean=a.clean_schedule))
+        if len(breaks) != n_all:
+            print(f"schedule: kept {len(breaks)} of {n_all} breaks, the index run holding "
+                  "the break named in the file name; the rest belong to another channel")
     if a.clean_schedule:
         print("schedule: cleaned (same-instant breaks merged, placeholders dropped, "
               "breaks split at gaps over two minutes)")

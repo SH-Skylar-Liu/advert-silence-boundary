@@ -146,7 +146,48 @@ def clean_breaks(ad_breaks: list) -> list:
     return out
 
 
-def load_breaks(meta_path: str, clean: bool = False) -> list:
+def own_run(ad_breaks: list, name_time):
+    """The breaks that belong to the recording, where a file lists two channels.
+
+    327 of the 1,670 schedule files hold break indices in more than one unbroken run
+    (12 Oct 2026). In the files looked at, the runs are two channels: the programmes
+    around them differ (2025-11-30_5_19:42:44 has Police Interceptors around breaks
+    68-91 and NFL around 156-172; E4 files carry a second run of More4-type
+    programmes), and video_info.channel is 5STAR in every file named 5. The schedule
+    has no channel per break, so the run is identified by the file name instead: its
+    time is the start_time of one break (true of 319 of the 327 files), and the run
+    of consecutive indices holding that break is the recording's own.
+
+    Returns that run, in schedule order, or None when the file has a single run or
+    no break starts at name_time (the caller then keeps every break).
+    """
+    ordered = sorted(ad_breaks, key=lambda b: int(b.get("index", 0)))
+    runs, cur = [], []
+    for br in ordered:
+        if cur and int(br.get("index", 0)) != int(cur[-1].get("index", 0)) + 1:
+            runs.append(cur)
+            cur = []
+        cur.append(br)
+    if cur:
+        runs.append(cur)
+    if len(runs) < 2 or not name_time:
+        return None
+    for run in runs:
+        if any(br.get("start_time") == name_time for br in run):
+            keep = {id(br) for br in run}
+            return [br for br in ad_breaks if id(br) in keep]
+    return None
+
+
+def name_time_of(path: str):
+    """'.../2025-11-30_5_19:42:44_metadata.json' -> '19:42:44' (None if absent)."""
+    import os
+    import re
+    m = re.search(r"_(\d{2}:\d{2}:\d{2})(?:_|\.|$)", os.path.basename(path))
+    return m.group(1) if m else None
+
+
+def load_breaks(meta_path: str, clean: bool = False, own: bool = False) -> list:
     """Read metadata.json; return each break's boundaries (relative to break start).
     Each break: {'label': ..., 'bounds': [(name, rel_seconds), ...]}.
     Boundaries = each advert's start (first = programme->break, rest = ad<->ad),
@@ -155,6 +196,10 @@ def load_breaks(meta_path: str, clean: bool = False) -> list:
     with open(meta_path, encoding="utf-8") as f:
         meta = json.load(f)
     ad_breaks = meta.get("ad_breaks", [])
+    if own:                                   # before cleaning: uses the original indices
+        run = own_run(ad_breaks, name_time_of(meta_path))
+        if run is not None:
+            ad_breaks = run
     if clean:
         ad_breaks = clean_breaks(ad_breaks)
     out = []

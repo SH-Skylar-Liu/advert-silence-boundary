@@ -68,6 +68,7 @@ PASSTHROUGH = [
     ("--max-past-silence-end", "max_past_silence_end", False),
     ("--no-fill-missing", "no_fill_missing", True),
     ("--clean-schedule", "clean_schedule", True),
+    ("--own-channel", "own_channel", True),
     ("--dry-run", "dry_run", True),
     ("--no-refine", "no_refine", True),
 ]
@@ -159,6 +160,8 @@ def main() -> None:
     ap.add_argument("--min-match-rate", type=float, default=0.5)
     ap.add_argument("--min-matches", type=int, default=3)
     ap.add_argument("--no-fill-missing", action="store_true")
+    ap.add_argument("--own-channel", action="store_true",
+                    help="keep only the recording's own run of breaks (see cut_adverts.py)")
     ap.add_argument("--clean-schedule", action="store_true",
                     help="repair break segmentation in the schedule first (see cut_adverts.py)")
     ap.add_argument("--last-end", choices=["silence-start", "midpoint"], default="silence-start")

@@ -50,7 +50,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from silence_detect import clean_breaks      # noqa: E402  (same repair the cutter applies)
+from silence_detect import clean_breaks, own_run, name_time_of   # noqa: E402  (as the cutter reads it)
 
 SLOTS = [10, 15, 20, 30, 40, 45, 60, 90]
 PLACEHOLDER = "SKYADSMART"
@@ -119,6 +119,11 @@ def load_schedule(src: Path) -> dict:
         data = json.load(open(meta, encoding="utf-8"))
         breaks = {}
         ad_breaks = data.get("ad_breaks", [])
+        if OWN:
+            run = own_run(ad_breaks, name_time_of(str(meta)))
+            if run is not None:
+                raw["breaks of another channel left out"] += len(ad_breaks) - len(run)
+                ad_breaks = run
         if CLEAN:
             ad_breaks = clean_breaks(ad_breaks)
         for br in ad_breaks:
@@ -135,6 +140,7 @@ def load_schedule(src: Path) -> dict:
 
 raw_ids = Counter()     # every unique_id in the delivered schedule, before collapsing
 CLEAN = False           # set by --clean-schedule: read the schedule as cut_adverts.py did
+OWN = False             # set by --own-channel
 
 
 def load_run(run: Path):
@@ -920,7 +926,7 @@ def cmd_selftest(_):
             "[drop] break 2 (10:20:00-None): only 2/3 boundaries matched (67% < 100%, or fewer than 3)\n"
             "[drop] break 3 (10:40:00-None): offset 12.0s inconsistent (expected ~900.0s)\n",
             encoding="utf-8")
-        ns = argparse.Namespace(src=str(src), run=str(run), out=str(Path(tmp) / "o1"), only_run=False, common_with=None, exclude=[], clean_schedule=False)
+        ns = argparse.Namespace(src=str(src), run=str(run), out=str(Path(tmp) / "o1"), only_run=False, common_with=None, exclude=[], clean_schedule=False, own_channel=False)
         cmd_recon(ns)
         text = (Path(tmp) / "o1" / "summary.txt").read_text(encoding="utf-8")
         mism = list(csv.reader(open(Path(tmp) / "o1" / "label_mismatch.csv", encoding="utf-8")))
@@ -957,6 +963,8 @@ def main():
                         "the raw-record lines of the summary are then not counted")
     p.add_argument("--exclude", nargs="+", default=[], metavar="NAME",
                    help="leave out recordings whose name contains any of these strings")
+    p.add_argument("--own-channel", action="store_true",
+                   help="read the schedule as an --own-channel run did (other channel's run left out)")
     p.add_argument("--clean-schedule", action="store_true",
                    help="read the schedule as a --clean-schedule run did (merged, placeholders "
                         "dropped, split at long gaps); use it to audit such a run")
@@ -1000,8 +1008,9 @@ def main():
     p = sub.add_parser("selftest")
     p.set_defaults(fn=cmd_selftest)
     a = ap.parse_args()
-    global CLEAN
+    global CLEAN, OWN
     CLEAN = bool(getattr(a, "clean_schedule", False))
+    OWN = bool(getattr(a, "own_channel", False))
     a.fn(a)
 
 
