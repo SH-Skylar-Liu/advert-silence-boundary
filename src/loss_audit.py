@@ -972,6 +972,31 @@ def cmd_fillcheck(a):
                                                 else "4+ and under half matched"))
             gain[key] += 1
             slots_gain[key] += nb
+    # chance: the [null] lines give, for each break, its match where it belongs and
+    # at four places in programme. A rule is judged by how often a null would pass it.
+    null_re = re.compile(r"\[null\] .*?: here (\d+)/(\d+); elsewhere ([\d ]+)")
+    here, nulls = [], []
+    for log in sorted((run / "_logs").glob("*.log")):
+        for m in null_re.finditer(log.read_text(encoding="utf-8", errors="replace")):
+            nb = int(m.group(2))
+            here.append((int(m.group(1)), nb))
+            nulls += [(int(x), nb) for x in m.group(3).split()]
+    rules = [("all boundaries matched", lambda n, nb: n == nb),
+             ("at most 1 missing", lambda n, nb: nb - n <= 1),
+             ("at most 2 missing", lambda n, nb: nb - n <= 2),
+             ("at most 3 missing", lambda n, nb: nb - n <= 3),
+             ("at least 2/3 matched", lambda n, nb: n * 3 >= nb * 2),
+             ("at least half matched", lambda n, nb: n * 2 >= nb)]
+    null_table = []
+    if nulls:
+        for name, ok in rules:
+            real = sum(1 for n, nb in here if n >= 3 and ok(n, nb))
+            false = sum(1 for n, nb in nulls if n >= 3 and ok(n, nb))
+            null_table.append([name, real, pct(real, len(here)), false, pct(false, len(nulls))])
+        write(out / "chance_by_rule.csv",
+              ["rule (and at least 3 matched)", "breaks passing where they belong", "share",
+               "null positions passing", "share"], null_table)
+
     lines = [f"run: {a.run}", "",
              "LEAVE-ONE-OUT: error of a boundary predicted from the rest of its break",
              "(positive = the silence midpoint lies later than predicted)",
@@ -983,6 +1008,10 @@ def cmd_fillcheck(a):
               "  = what accepting them and filling the gaps would add"]
     for k in sorted(gain):
         lines.append(f"  {k[0]:<14} missing {k[1]:<30} {gain[k]:>5,} breaks {slots_gain[k]:>6,} slots")
+    if null_table:
+        lines += ["", f"CHANCE: {len(here):,} breaks fitted where they belong, {len(nulls):,} fits in programme",
+                  f"  {'rule (with at least 3 matched)':<34}{'pass, in place':>16}{'pass, in programme':>22}"]
+        lines += [f"  {t[0]:<34}{t[1]:>8,} {t[2]:>7}{t[3]:>14,} {t[4]:>7}" for t in null_table]
     (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
 

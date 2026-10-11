@@ -58,7 +58,7 @@ import os
 import re
 import subprocess
 
-from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s, align_by_recording
+from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s, align_by_recording, null_hits
 
 from refine_first_frame import HAVE_SCENEDETECT, refine_start
 
@@ -109,6 +109,12 @@ def main() -> None:
                          "whose offset disagrees with the previous kept one. recording: fix "
                          "the start of the recording from the fully matched breaks, then "
                          "check every break only where it must be (11 Oct 2026)")
+    ap.add_argument("--confirm-partial", action="store_true",
+                    help="with --align recording: let breaks that missed a silence also propose "
+                         "the recording start; two breaks whose own fits agree confirm it")
+    ap.add_argument("--fill-only-confirmed", action="store_true",
+                    help="apply --min-match-rate and fill-missing only where the recording "
+                         "start is confirmed; elsewhere keep the strict all-boundaries rule")
     ap.add_argument("--own-channel", action="store_true",
                     help="where the schedule lists breaks in more than one run of index, keep "
                          "only the run holding the break whose start time is in the file name; "
@@ -215,7 +221,8 @@ def main() -> None:
     by_recording = False
     if a.align == "recording":
         start, n_anchors, report = align_by_recording(items, silences, a.tol, a.offset_tol,
-                                                      a.min_matches, probe_duration(a.recording))
+                                                      a.min_matches, probe_duration(a.recording),
+                                                      partial=a.confirm_partial)
         if start is None:
             print("[align] no recording start that two breaks confirm"
                   + (" (no fully matched break)" if not n_anchors else "")
@@ -234,7 +241,22 @@ def main() -> None:
                 if it.get("place") == "outside":
                     print(f"[outside] {it['label']}: expected at {start + it['wt']:.0f}s, "
                           "not in this recording")
+                elif it["nb"] >= a.min_matches:
+                    # the same break looked for in programme, five and seven minutes
+                    # either side: what chance alone matches (see null_hits)
+                    nulls = null_hits(it["bounds"], silences, start + it["wt"], a.offset_tol, a.tol)
+                    print(f"[null] {it['label']}: here {it['n']}/{it['nb']}; elsewhere "
+                          + " ".join(str(x) for x in nulls))
             items = [it for it in items if it.get("place") != "outside"]
+
+    # --fill-only-confirmed: a break whose position rests on its own fit alone is
+    # held to the strict rule; partial matches are accepted, and their missing
+    # boundaries filled, only where the recording start is confirmed.
+    strict_here = a.fill_only_confirmed and not by_recording
+    min_rate = 1.0 if strict_here else a.min_match_rate
+    fill_here = a.fill_missing and not strict_here
+    if a.fill_only_confirmed:
+        print(f"[fill] {'strict rule: start not confirmed' if strict_here else 'partial matches accepted: start confirmed'}")
 
     # offset-consistency + full-match filter
     kept = []
@@ -244,9 +266,9 @@ def main() -> None:
         # the remainder are filled from the schedule and flagged. Raise
         # --min-match-rate towards 1.0 to return to the conservative behaviour.
         rate = it["n"] / it["nb"] if it["nb"] else 0.0
-        if rate < a.min_match_rate or it["n"] < a.min_matches:
+        if rate < min_rate or it["n"] < a.min_matches:
             print(f"[drop] {it['label']}: only {it['n']}/{it['nb']} boundaries matched "
-                  f"({rate:.0%} < {a.min_match_rate:.0%}, or fewer than {a.min_matches})")
+                  f"({rate:.0%} < {min_rate:.0%}, or fewer than {a.min_matches})")
             continue
         if kept and not by_recording:
             p = kept[-1]
@@ -292,7 +314,7 @@ def main() -> None:
                 # average, measured 12 Sep 2026 over 12 recordings).
                 # These starts are still refined by Stage B, and are marked
                 # start_source=schedule so their precision can be reported separately.
-                if not a.fill_missing:
+                if not fill_here:
                     starts.append(None)
                     shifts.append(0.0)
                     statuses.append("no-silence")

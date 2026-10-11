@@ -341,8 +341,24 @@ def align_near(bounds: list, silences: list, expected_T: float, window: float,
     return (n, T, hits)
 
 
+NULL_SHIFTS_S = (-420.0, -300.0, 300.0, 420.0)
+
+
+def null_hits(bounds: list, silences: list, expected_T: float, window: float, tol: float):
+    """How many boundaries match when the break is looked for where it is NOT.
+
+    The break is fitted again at positions five and seven minutes either side of
+    where it belongs. A break lasts at most a few minutes and the next one is a
+    quarter of an hour away, so these positions lie in programme, whose pauses are
+    unrelated to the schedule. The counts are what chance alone gives under exactly
+    the search used for the real position, and so say how many matched boundaries a
+    break needs before a partial match can be told from none.
+    """
+    return [align_near(bounds, silences, expected_T + sh, window, tol)[0] for sh in NULL_SHIFTS_S]
+
+
 def align_by_recording(items: list, silences: list, tol: float, offset_tol: float,
-                       min_matches: int, duration=None):
+                       min_matches: int, duration=None, partial: bool = False):
     """Fix the start of the recording first, then check every break where it must be.
 
     A recording is one continuous stretch of broadcast, so every break in it implies
@@ -376,9 +392,16 @@ def align_by_recording(items: list, silences: list, tol: float, offset_tol: floa
     """
     anchors = [it for it in items
                if it["nb"] >= min_matches and it["n"] == it["nb"]]
-    if not anchors:
+    # partial: a break that missed a silence may still propose a start. In 44 of the
+    # 60 sample recordings that could not be confirmed there were three or more
+    # breaks, none or one of them matched completely, and 123 of them missed only one
+    # to three boundaries (14 Oct 2026). Their own fits are still independent of one
+    # another, so two that agree on the recording start are evidence of it.
+    proposers = anchors if not partial else [it for it in items if it["n"] >= min_matches]
+    if not proposers:
         return (None, 0, [])
-    proposals = sorted(it["T"] - it["wt"] for it in anchors)
+    free = [(it["T"] - it["wt"]) for it in proposers]
+    proposals = sorted(free)
     candidates, group = [], [proposals[0]]
     for g in proposals[1:]:
         if g - group[0] <= offset_tol:
@@ -420,9 +443,11 @@ def align_by_recording(items: list, silences: list, tol: float, offset_tol: floa
         total, fits = refit_all(c)
         full = sum(1 for it, f in zip(items, fits)
                    if f[0] == "fitted" and it["nb"] >= min_matches and f[1] == it["nb"])
-        scored.append(((full, total), c, fits))
+        # with partial: how many breaks, each fitted on its own, point to this start
+        agree = sum(1 for g in free if abs(g - c) <= offset_tol) if partial else 0
+        scored.append(((max(full, agree), full, total), c, fits))
     (best, start, fits) = max(scored, key=lambda x: x[0])
-    report = sorted(((c, full, total) for (full, total), c, _ in scored),
+    report = sorted(((c, k[0], k[2]) for k, c, _ in scored),
                     key=lambda x: (-x[1], -x[2]))
     # A start that only ONE break matches completely is that break's word alone, and
     # a break sitting on another break's silences gives exactly that. Without a
