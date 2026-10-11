@@ -17,6 +17,10 @@ Three subcommands, each writing CSV tables plus a plain-text summary to --out:
            (per-break hit rate, yield at several acceptance rules, and a seeded
            sample of schedule-filled cut points for frame-by-frame checking)
 
+  offsets  do the breaks of a recording agree on when the recording started?
+           (finds breaks dropped by the consistency filter although their offset
+           matches the rest of the recording, and kept breaks that do not)
+
   anchor   long silences
            (audio-picture offset by silence length, clips over 120 s, and a
            simulation of anchoring long silences on the silence end)
@@ -46,6 +50,7 @@ GAP_S = 120          # no advert is this long; a longer gap inside a break is tw
 HIST_KEYS = ["1", "2", "3", "4+", "0 matched", "0 (too few boundaries)"]
 DROP_MATCH = re.compile(r"\[drop\] break (\d+) \(.*?\): only (\d+)/(\d+) boundaries")
 DROP_OFFSET = re.compile(r"\[drop\] break (\d+) \(.*?\): offset ")
+DROP_OFFSET_T = re.compile(r"\[drop\] break (\d+) \(.*?\): offset (-?[\d.]+)s inconsistent")
 SKIP_END = re.compile(r"\[skip\] break (\d+) \(.*?\) advert (\d+): no end silence")
 
 
@@ -494,6 +499,92 @@ def cmd_anchor(a):
 
 
 # ---------------------------------------------------------------------------
+def cmd_offsets(a):
+    """Do the breaks of one recording agree on when the recording started?
+
+    A recording is one continuous stretch of broadcast, so every break in it implies
+    the same thing: recording start = (position of the break in the file) - (its
+    wall-clock time). cut_adverts.py fits each break on its own and then accepts a
+    break only if it agrees with the PREVIOUS KEPT one. If that earlier break was a
+    chance fit, every correct break after it is thrown out. Here the offsets of all
+    breaks that were fitted are put side by side, kept or not, and the value most of
+    them agree on is taken as the recording start. Nothing is re-aligned and no
+    video is read: fitted offsets come from the ledger (kept breaks) and from the
+    [drop] lines in the logs (breaks dropped for an inconsistent offset).
+    """
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    src, run = Path(a.src), Path(a.run)
+    sched, _ = load_schedule(src)
+    rows, _, _ = load_run(run)
+    wall = {}
+    for meta in sorted(src.rglob("*_metadata.json")):
+        stem = meta.name[: -len("_metadata.json")]
+        for br in json.load(open(meta, encoding="utf-8")).get("ad_breaks", []):
+            wall[(stem, int(br.get("index")))] = hms_to_s(br["start_time"])
+
+    fitted = defaultdict(dict)                     # stem -> {break: (T, 'kept'|'dropped')}
+    by_break = defaultdict(list)
+    for (stem, idx, pos), r in rows.items():
+        if r.get("start_source", "silence") != "schedule" and r.get("start_silence_mid_s"):
+            rel = sched[stem][idx][pos - 1][0]
+            by_break[(stem, idx)].append(float(r["start_silence_mid_s"]) - rel)
+    for (stem, idx), ts in by_break.items():
+        fitted[stem][idx] = (statistics.median(ts), "kept")
+    for log in sorted((run / "_logs").glob("*.log")):
+        stem = log.name[:-4]
+        for m in DROP_OFFSET_T.finditer(log.read_text(encoding="utf-8", errors="replace")):
+            fitted[stem].setdefault(int(m.group(1)), (float(m.group(2)), "dropped"))
+
+    tol = a.tol
+    none = "recording has no two breaks that agree"
+    tally, slots, detail = Counter(), Counter(), []
+    poisoned = undetermined = 0
+    for stem, brs in fitted.items():
+        brs = {i: v for i, v in brs.items() if (stem, i) in wall and i in sched.get(stem, {})}
+        g = {i: T - wall[(stem, i)] for i, (T, _) in brs.items()}
+        vals = sorted(g.values())
+        cluster = []
+        if vals:
+            best = max(vals, key=lambda v: sum(1 for x in vals if v <= x <= v + tol))
+            cluster = [x for x in vals if best <= x <= best + tol]
+        if len(cluster) < 2:
+            undetermined += 1
+            for i, (T, st) in brs.items():
+                tally[(st, none)] += 1
+                slots[(st, none)] += len(sched[stem][i])
+            continue
+        centre = statistics.median(cluster)
+        kept_ids = [i for i, (_, st) in brs.items() if st == "kept"]
+        if kept_ids:
+            first_kept = min(kept_ids, key=lambda i: wall[(stem, i)])
+            poisoned += abs(g[first_kept] - centre) > tol
+        for i, (T, st) in brs.items():
+            verdict = "agrees with the recording" if abs(g[i] - centre) <= tol else "disagrees"
+            tally[(st, verdict)] += 1
+            slots[(st, verdict)] += len(sched[stem][i])
+            detail.append([stem, i, len(sched[stem][i]), st, f"{T:.1f}",
+                           f"{g[i] - centre:+.1f}", verdict, len(cluster), len(brs)])
+    write(out / "break_offsets.csv",
+          ["recording", "break", "slots", "status", "fitted_T_s", "offset_from_recording_s",
+           "verdict", "breaks_in_agreement", "breaks_fitted"], detail)
+    lines = [f"run: {a.run}", f"agreement window: {tol:g} s", "",
+             "FITTED BREAKS, by what the pipeline did and whether the break agrees with",
+             "the start time most breaks of its recording imply"]
+    lines += [f"  {k[0]:<9}{k[1]:<42}{v:>6,} breaks {slots[k]:>7,} slots"
+              for k, v in sorted(tally.items(), key=lambda kv: (kv[0][0], -kv[1]))]
+    lines += ["",
+              f"recordings whose FIRST kept break disagrees with the rest: {poisoned:,}",
+              f"recordings where no two fitted breaks agree:              {undetermined:,}",
+              "",
+              "'dropped' + 'agrees' are breaks the consistency filter threw out although their",
+              "offset matches the recording: recoverable without filling anything.",
+              "'kept' + 'disagrees' are breaks in the ledger whose offset is out of step: suspect."]
+    (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+
+
+# ---------------------------------------------------------------------------
 def cmd_selftest(_):
     """Synthetic schedule + ledger with known answers. Touches no real data."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -579,6 +670,13 @@ def main():
     p.add_argument("--back", type=float, nargs="+", default=[0.20, 0.24, 0.28, 0.32, 0.35],
                    help="seconds before the silence end to try as the anchor")
     p.set_defaults(fn=cmd_anchor)
+    p = sub.add_parser("offsets")
+    p.add_argument("--src", required=True)
+    p.add_argument("--run", required=True)
+    p.add_argument("--out", required=True)
+    p.add_argument("--tol", type=float, default=5.0,
+                   help="seconds within which two breaks count as agreeing (cut_adverts --offset-tol)")
+    p.set_defaults(fn=cmd_offsets)
     p = sub.add_parser("selftest")
     p.set_defaults(fn=cmd_selftest)
     a = ap.parse_args()
