@@ -39,6 +39,7 @@ import json
 import random
 import re
 import statistics
+import subprocess
 import sys
 import tempfile
 from collections import Counter, defaultdict
@@ -144,6 +145,16 @@ def load_run(run: Path):
         for m in DROP_OFFSET.finditer(text):
             fate[(stem, int(m.group(1)))] = ("dropped: offset inconsistent", None, None)
     return rows, fate, stems
+
+
+def probe_duration(mp4: Path):
+    """Length of a recording in seconds, from its container header (no decoding)."""
+    try:
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                            "-of", "csv=p=0", str(mp4)], capture_output=True, text=True, timeout=60)
+        return float(r.stdout.strip())
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
 
 
 def write(path: Path, header: list, rows: list):
@@ -540,6 +551,7 @@ def cmd_offsets(a):
     none = "recording has no two breaks that agree"
     tally, slots, detail = Counter(), Counter(), []
     poisoned = undetermined = 0
+    start_of = {}                 # stem -> (recording start on the wall clock, basis)
     for stem, brs in fitted.items():
         brs = {i: v for i, v in brs.items() if (stem, i) in wall and i in sched.get(stem, {})}
         g = {i: T - wall[(stem, i)] for i, (T, _) in brs.items()}
@@ -553,8 +565,12 @@ def cmd_offsets(a):
             for i, (T, st) in brs.items():
                 tally[(st, none)] += 1
                 slots[(st, none)] += len(sched[stem][i])
+            kept_one = [i for i, (_, st) in brs.items() if st == "kept"]
+            if len(kept_one) == 1:          # the only evidence there is; unconfirmed
+                start_of[stem] = (g[kept_one[0]], "one kept break, unconfirmed")
             continue
         centre = statistics.median(cluster)
+        start_of[stem] = (centre, "two or more breaks agree")
         kept_ids = [i for i, (_, st) in brs.items() if st == "kept"]
         if kept_ids:
             first_kept = min(kept_ids, key=lambda i: wall[(stem, i)])
@@ -580,6 +596,58 @@ def cmd_offsets(a):
               "'dropped' + 'agrees' are breaks the consistency filter threw out although their",
               "offset matches the recording: recoverable without filling anything.",
               "'kept' + 'disagrees' are breaks in the ledger whose offset is out of step: suspect."]
+    # --- is each scheduled break inside its recording at all?
+    # With the recording start known, every break in the schedule has a predicted
+    # position in the file, whether or not it was ever fitted. A break predicted
+    # before second 0 or after the end of the file was never recorded there, and no
+    # alignment rule can recover it from this file.
+    if a.probe:
+        _, fate, _ = load_run(run)
+        mp4s = {m.name[:-4]: m for m in src.rglob("*.mp4")}
+        where, where_slots, inside_rows = Counter(), Counter(), []
+        no_start = no_dur = 0
+        for stem, breaks in sched.items():
+            if stem not in start_of:
+                no_start += 1
+                continue
+            dur = probe_duration(mp4s[stem]) if stem in mp4s else None
+            if dur is None:
+                no_dur += 1
+                continue
+            start, basis = start_of[stem]
+            for idx, kept in breaks.items():
+                if (stem, idx) not in wall:
+                    continue
+                pos = wall[(stem, idx)] + start
+                length = kept[-1][0] if kept else 0.0
+                if pos < 0 or pos > dur:
+                    place = "outside the file"
+                elif pos + length > dur:
+                    place = "starts inside, runs past the end"
+                else:
+                    place = "inside the file"
+                if any((stem, idx, q + 1) in rows for q in range(len(kept))):
+                    st = "kept"
+                elif (stem, idx) in fate:
+                    st = fate[(stem, idx)][0]
+                    if fate[(stem, idx)][1] is not None and fate[(stem, idx)][1] == fate[(stem, idx)][2]:
+                        st = "dropped: too few boundaries"
+                else:
+                    st = "no ledger row and no log line"
+                where[(basis, place, st)] += 1
+                where_slots[(basis, place, st)] += len(kept)
+                inside_rows.append([stem, idx, len(kept), st, f"{pos:.0f}", f"{dur:.0f}", place, basis])
+        write(out / "break_positions.csv",
+              ["recording", "break", "slots", "status", "predicted_position_s", "recording_length_s",
+               "place", "basis_for_recording_start"], inside_rows)
+        lines += ["", "WHERE EACH SCHEDULED BREAK FALLS, given the recording start"]
+        for basis in ["two or more breaks agree", "one kept break, unconfirmed"]:
+            lines += [f"  recording start from: {basis}"]
+            lines += [f"    {k[1]:<34}{k[2]:<34}{v:>6,} breaks {where_slots[k]:>7,} slots"
+                      for k, v in sorted(where.items(), key=lambda kv: (kv[0][1], -kv[1]))
+                      if k[0] == basis]
+        lines += [f"  recordings with no usable start: {no_start:,}   length unreadable: {no_dur:,}"]
+
     (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
 
@@ -676,6 +744,9 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--tol", type=float, default=5.0,
                    help="seconds within which two breaks count as agreeing (cut_adverts --offset-tol)")
+    p.add_argument("--probe", action="store_true",
+                   help="read each recording's length with ffprobe and report which scheduled "
+                        "breaks fall inside the file")
     p.set_defaults(fn=cmd_offsets)
     p = sub.add_parser("selftest")
     p.set_defaults(fn=cmd_selftest)
