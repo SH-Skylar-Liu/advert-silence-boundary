@@ -596,6 +596,44 @@ def cmd_offsets(a):
               "'dropped' + 'agrees' are breaks the consistency filter threw out although their",
               "offset matches the recording: recoverable without filling anything.",
               "'kept' + 'disagrees' are breaks in the ledger whose offset is out of step: suspect."]
+    # --- does the file name already say when the recording started?
+    # Names look like 2021-10-29_Channel 5_09:42:55. If that time is the recording
+    # start, it can be compared with the start the fitted breaks imply (wall-clock
+    # start = -centre). Agreement would mean the start is known before any fitting.
+    diffs, sample_rows = [], []
+    for stem, (start, basis) in start_of.items():
+        if basis != "two or more breaks agree":
+            continue
+        m = re.search(r"_(\d{2}:\d{2}:\d{2})(?:_|$)", stem)
+        if not m:
+            continue
+        d = -start - hms_to_s(m.group(1))
+        diffs.append(d)
+        sample_rows.append([stem, m.group(1), f"{-start:.1f}", f"{d:+.1f}"])
+    write(out / "name_vs_fitted_start.csv",
+          ["recording", "time_in_file_name", "fitted_start_wall_clock_s", "fitted_minus_name_s"],
+          sample_rows)
+    if diffs:
+        ds = sorted(diffs)
+        q = lambda f: ds[min(len(ds) - 1, int(f * len(ds)))]
+        lines += ["", "TIME IN THE FILE NAME vs RECORDING START IMPLIED BY THE FITTED BREAKS",
+                  f"  recordings compared (start confirmed by two or more breaks): {len(ds):,}",
+                  f"  fitted start minus name time, seconds: p10 {q(0.1):+.1f}   median {q(0.5):+.1f}   p90 {q(0.9):+.1f}",
+                  f"  within   5 s: {pct(sum(abs(x) <= 5 for x in ds), len(ds))}",
+                  f"  within  60 s: {pct(sum(abs(x) <= 60 for x in ds), len(ds))}",
+                  f"  within 600 s: {pct(sum(abs(x) <= 600 for x in ds), len(ds))}"]
+    first_meta = next(iter(sorted(src.rglob("*_metadata.json"))), None)
+    if first_meta is not None:
+        d0 = json.load(open(first_meta, encoding="utf-8"))
+        lines += ["", f"FIELDS BESIDE ad_breaks IN {first_meta.name}"]
+        lines += [f"  {k}: {json.dumps(v, ensure_ascii=False)[:300]}" for k, v in d0.items() if k != "ad_breaks"]
+        if d0.get("ad_breaks"):
+            b0 = d0["ad_breaks"][0]
+            lines += ["  first break, fields beside adverts: "
+                      + json.dumps({k: v for k, v in b0.items() if k != "adverts"}, ensure_ascii=False)[:300]]
+            if b0.get("adverts"):
+                lines += ["  first advert: " + json.dumps(b0["adverts"][0], ensure_ascii=False)[:400]]
+
     # --- is each scheduled break inside its recording at all?
     # With the recording start known, every break in the schedule has a predicted
     # position in the file, whether or not it was ever fitted. A break predicted
