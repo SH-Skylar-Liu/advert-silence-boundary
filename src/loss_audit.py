@@ -195,6 +195,16 @@ def cmd_recon(a):
         # so yields are not diluted by recordings the run never touched
         sched = {k: v for k, v in sched.items() if k in stems}
         raw = Counter()
+    if a.exclude:
+        # leave named recordings out altogether (e.g. one stopped by hand, whose empty
+        # ledger would otherwise count as a recording with nothing cut)
+        drop = {k for k in set(sched) | stems if any(x in k for x in a.exclude)}
+        sched = {k: v for k, v in sched.items() if k not in drop}
+        rows = {k: v for k, v in rows.items() if k[0] not in drop}
+        fate = {k: v for k, v in fate.items() if k[0] not in drop}
+        stems = stems - drop
+        raw = Counter()
+        print(f'recordings excluded by name: {len(drop):,}')
     if a.common_with:
         # compare two runs on exactly the recordings both have finished
         _, _, other = load_run(Path(a.common_with))
@@ -746,7 +756,7 @@ def cmd_selftest(_):
             "[drop] break 2 (10:20:00-None): only 2/3 boundaries matched (67% < 100%, or fewer than 3)\n"
             "[drop] break 3 (10:40:00-None): offset 12.0s inconsistent (expected ~900.0s)\n",
             encoding="utf-8")
-        ns = argparse.Namespace(src=str(src), run=str(run), out=str(Path(tmp) / "o1"), only_run=False, common_with=None)
+        ns = argparse.Namespace(src=str(src), run=str(run), out=str(Path(tmp) / "o1"), only_run=False, common_with=None, exclude=[])
         cmd_recon(ns)
         text = (Path(tmp) / "o1" / "summary.txt").read_text(encoding="utf-8")
         mism = list(csv.reader(open(Path(tmp) / "o1" / "label_mismatch.csv", encoding="utf-8")))
@@ -781,6 +791,8 @@ def main():
     p.add_argument("--only-run", action="store_true",
                    help="restrict the schedule to recordings present in the run (sample runs); "
                         "the raw-record lines of the summary are then not counted")
+    p.add_argument("--exclude", nargs="+", default=[], metavar="NAME",
+                   help="leave out recordings whose name contains any of these strings")
     p.add_argument("--common-with", metavar="OTHER_RUN",
                    help="count only recordings that this run AND the other run have finished, "
                         "so two sample runs are compared on the same recordings")
