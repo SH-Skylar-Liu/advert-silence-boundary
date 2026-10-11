@@ -143,7 +143,21 @@ def clean_breaks(ad_breaks: list) -> list:
             nb["start_time"] = part[0]["start_time"]
             nb["adverts"] = part
             out.append(nb)
-    return out
+
+    # A record that opens the NEXT break is sometimes appended to the break before
+    # (2021-04-30_Channel 5_14:42:10: break 28 ends with a record at 15:09:43, the
+    # instant break 29 starts). The split above leaves it as a part of its own, which
+    # now starts when the next break does: put it at the head of that break.
+    final = []
+    for br in out:
+        if final and br.get("start_time") == final[-1].get("start_time"):
+            head = final.pop()
+            nb = dict(br)
+            nb["adverts"] = head["adverts"] + br["adverts"]
+            final.append(nb)                 # keeps the index of the break it belongs to
+            continue
+        final.append(br)
+    return final
 
 
 def own_run(ad_breaks: list, name_time):
