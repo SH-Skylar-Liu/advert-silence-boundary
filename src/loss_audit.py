@@ -25,6 +25,10 @@ Three subcommands, each writing CSV tables plus a plain-text summary to --out:
            (finds breaks dropped by the consistency filter although their offset
            matches the rest of the recording, and kept breaks that do not)
 
+  fillcheck how good a schedule-filled boundary would be: leave-one-out error of
+           the boundaries that did find a silence, and what each acceptance rule
+           would add in recordings with a confirmed start
+
   anchor   long silences
            (audio-picture offset by silence length, clips over 120 s, and a
            simulation of anchoring long silences on the silence end)
@@ -887,6 +891,103 @@ def cmd_diff(a):
 
 
 # ---------------------------------------------------------------------------
+def cmd_fillcheck(a):
+    """How good would a boundary be if it had to be filled from the schedule?
+
+    Filling puts a boundary that found no silence at (its schedule offset + the
+    break's fitted offset T). Its clip length then agrees with the slot grid by
+    construction, so slot deviation cannot test it. But the boundaries that DID find
+    a silence can: leave one out, fit T from the others in the break, predict the one
+    left out, and compare with where its silence actually is. That error is what a
+    filled boundary would have had at that place. No video is read.
+
+    Also counts, in recordings whose start two breaks confirm, the breaks dropped for
+    unmatched boundaries by how many are missing: what each acceptance rule would add.
+    """
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    run = Path(a.run)
+    sched, _ = load_schedule(Path(a.src))
+    rows, _, _ = load_run(run)
+    by_break = defaultdict(list)
+    for (stem, idx, pos), r in rows.items():
+        if r.get("start_source", "silence") == "schedule" or not r.get("start_silence_mid_s"):
+            continue
+        try:
+            rel = sched[stem][idx][pos - 1][0]
+        except (KeyError, IndexError):
+            continue
+        conf = r.get("start_confirmed_by", "")
+        by_break[(stem, idx)].append((pos, rel, float(r["start_silence_mid_s"]),
+                                      int(conf) if str(conf).isdigit() else 0))
+    errs = []                       # (signed error s, position class, year, confirmed)
+    for (stem, idx), items in by_break.items():
+        if len(items) < 4:
+            continue
+        year = parse_stem(stem)[0]
+        for k, (pos, rel, mid, conf) in enumerate(items):
+            others = [m - r for j, (_, r, m, _) in enumerate(items) if j != k]
+            pred = rel + statistics.median(others)
+            errs.append((mid - pred, "break-first" if pos == 1 else "within break", year, conf >= 2))
+
+    def describe(sel):
+        v = sorted(abs(e) for e in sel)
+        if not v:
+            return None
+        q = lambda f: v[min(len(v) - 1, int(f * len(v)))]
+        signed = sorted(sel)
+        return [len(v), f"{signed[len(signed) // 2]:+.3f}", f"{q(0.5):.3f}", f"{q(0.9):.3f}", f"{q(0.99):.3f}",
+                pct(sum(x <= 0.2 for x in v), len(v)), pct(sum(x <= 0.5 for x in v), len(v)),
+                pct(sum(x <= 1.0 for x in v), len(v))]
+
+    table = []
+    groups = [("all", lambda e: True), ("within break", lambda e: e[1] == "within break"),
+              ("break-first", lambda e: e[1] == "break-first"),
+              ("start confirmed by two breaks", lambda e: e[3]),
+              ("start not confirmed", lambda e: not e[3])]
+    groups += [(y, (lambda e, y=y: e[2] == y)) for y in sorted({e[2] for e in errs})]
+    for name, f in groups:
+        d = describe([e[0] for e in errs if f(e)])
+        if d:
+            table.append([name] + d)
+    write(out / "leave_one_out.csv",
+          ["group", "n", "median_signed_s", "median_abs_s", "p90_abs_s", "p99_abs_s",
+           "within_0.2s", "within_0.5s", "within_1.0s"], table)
+
+    # what each acceptance rule would add, in recordings with a confirmed start
+    gain, slots_gain = Counter(), Counter()
+    conf_recs = fall_recs = 0
+    for log in sorted((run / "_logs").glob("*.log")):
+        text = log.read_text(encoding="utf-8", errors="replace")
+        confirmed = "[align] recording start fixed" in text
+        conf_recs += confirmed
+        fall_recs += "[align] no recording start" in text
+        for m in DROP_MATCH.finditer(text):
+            n, nb = int(m.group(2)), int(m.group(3))
+            miss = nb - n
+            if nb < 3 or miss == 0:
+                continue
+            key = ("confirmed" if confirmed else "not confirmed",
+                   str(miss) if miss <= 3 else ("4+ but at least half matched" if n * 2 >= nb
+                                                else "4+ and under half matched"))
+            gain[key] += 1
+            slots_gain[key] += nb
+    lines = [f"run: {a.run}", "",
+             "LEAVE-ONE-OUT: error of a boundary predicted from the rest of its break",
+             "(positive = the silence midpoint lies later than predicted)",
+             f"  {'group':<32}{'n':>7}  {'median':>8}  {'|med|':>6}  {'|p90|':>6}  {'|p99|':>6}  <=0.2s  <=0.5s  <=1.0s"]
+    lines += [f"  {t[0]:<32}{t[1]:>7,}  {t[2]:>8}  {t[3]:>6}  {t[4]:>6}  {t[5]:>6}  {t[6]:>6}  {t[7]:>6}  {t[8]:>6}"
+              for t in table]
+    lines += ["", f"recordings with a confirmed start: {conf_recs:,}   fell back: {fall_recs:,}", "",
+              "BREAKS DROPPED FOR UNMATCHED BOUNDARIES (3 or more boundaries), by number missing",
+              "  = what accepting them and filling the gaps would add"]
+    for k in sorted(gain):
+        lines.append(f"  {k[0]:<14} missing {k[1]:<30} {gain[k]:>5,} breaks {slots_gain[k]:>6,} slots")
+    (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+
+
+# ---------------------------------------------------------------------------
 def cmd_selftest(_):
     """Synthetic schedule + ledger with known answers. Touches no real data."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -1005,6 +1106,13 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--exclude", nargs="+", default=[], metavar="NAME")
     p.set_defaults(fn=cmd_diff)
+    p = sub.add_parser("fillcheck")
+    p.add_argument("--src", required=True)
+    p.add_argument("--run", required=True)
+    p.add_argument("--out", required=True)
+    p.add_argument("--clean-schedule", action="store_true")
+    p.add_argument("--own-channel", action="store_true")
+    p.set_defaults(fn=cmd_fillcheck)
     p = sub.add_parser("selftest")
     p.set_defaults(fn=cmd_selftest)
     a = ap.parse_args()
