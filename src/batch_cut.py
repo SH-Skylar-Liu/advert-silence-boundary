@@ -59,6 +59,7 @@ PASSTHROUGH = [
     ("--min-dur", "min_dur", False),
     ("--end-mode", "end_mode", False),
     ("--backend", "backend", False),
+    ("--align", "align", False),
     ("--min-match-rate", "min_match_rate", False),
     ("--min-matches", "min_matches", False),
     ("--last-end", "last_end", False),
@@ -146,6 +147,8 @@ def main() -> None:
     # Passed straight through to cut_adverts.py, so a batch can reproduce an earlier
     # rule set exactly (e.g. the 12 Sep baseline: --min-match-rate 1 --no-fill-missing).
     ap.add_argument("--backend", choices=["auto", "ffmpeg", "scenedetect"], default="auto")
+    ap.add_argument("--align", choices=["break", "recording"], default="break",
+                    help="recording = fix the recording start first (see cut_adverts.py)")
     ap.add_argument("--min-scene-len", type=int, default=None)
     # Missing here until 19 Sep 2026, so a threshold sweep run through this driver
     # exited at argument parsing and wrote no ledgers at all.

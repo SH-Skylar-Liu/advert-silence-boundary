@@ -161,6 +161,120 @@ def align(bounds: list, silences: list, tol: float = 0.35):
     return (n, T, hits)
 
 
+def align_near(bounds: list, silences: list, expected_T: float, window: float,
+               tol: float = 0.35):
+    """align(), but only offsets within `window` seconds of expected_T are tried.
+
+    Used once the start of the recording is known: a break then has one place it can
+    be, and the question is no longer "where in the file does this pattern fit best"
+    but "do its boundaries fall on silences there". Ties go to the offset nearest the
+    expected one. Returns (num_matched, T, per-boundary matched silence or None);
+    with nothing in range, (0, expected_T, all None).
+    """
+    rels = [r for _, r in bounds]
+    none = (0, expected_T, [None] * len(bounds))
+    if not bounds or not silences:
+        return none
+
+    def matched_silence(clip_t):
+        for sil in silences:
+            if sil["start"] - tol <= clip_t <= sil["end"] + tol:
+                return sil
+        return None
+
+    near = [sil["start"] for sil in silences
+            if rels[0] + expected_T - window - rels[-1] <= sil["start"]
+            <= rels[-1] + expected_T + window]
+    best = None
+    for r in rels:
+        for ss in near:
+            T = ss - r
+            if abs(T - expected_T) > window:
+                continue
+            hits = [matched_silence(r_i + T) for r_i in rels]
+            n = sum(1 for h in hits if h)
+            key = (n, -abs(T - expected_T))
+            if best is None or key > best[0]:
+                best = (key, T, hits)
+    if best is None:
+        return none
+    (n, _), T, hits = best
+    refit = statistics.median([h["start"] - rels[i] for i, h in enumerate(hits) if h])
+    if abs(refit - expected_T) <= window:
+        re_hits = [matched_silence(r_i + refit) for r_i in rels]
+        if sum(1 for h in re_hits if h) >= n:
+            T, hits, n = refit, re_hits, sum(1 for h in re_hits if h)
+    return (n, T, hits)
+
+
+def align_by_recording(items: list, silences: list, tol: float, offset_tol: float,
+                       min_matches: int, duration=None):
+    """Fix the start of the recording first, then check every break where it must be.
+
+    A recording is one continuous stretch of broadcast, so every break in it implies
+    the same recording start: (position of the break in the file) - (its wall-clock
+    time). Fitting each break on its own and comparing it with the previous kept one
+    lets a single chance fit reject every correct break after it (full run, 11 Oct
+    2026: some 17,000 slots lay in breaks that are inside their file by this
+    reckoning and were dropped as "offset inconsistent"; in 2020-08-29 ITV1 HD 09:39
+    a 4/7 chance fit of break 1 displaced four fully matched breaks).
+
+    items: one dict per break with 'wt' (wall-clock seconds), 'bounds', and the free
+    fit 'n', 'T', 'hits' from align(). Steps:
+      1. anchors = breaks whose free fit matched EVERY boundary, with at least
+         min_matches boundaries; a complete match is very unlikely to be chance;
+      2. each anchor proposes a recording start; proposals within offset_tol of one
+         another are one candidate;
+      3. the candidate under which the breaks, re-fitted near their expected
+         positions, match the most boundaries in total is the recording start;
+      4. every break is then fitted only within offset_tol of its expected position.
+         A break expected before second 0 or after the end of the file is marked
+         'outside' and not fitted.
+    No new parameter: tol and offset_tol are the ones align() and the old filter use.
+
+    Returns (start, n_anchors). Each item gains 'place' ('fitted' | 'outside') and,
+    where fitted, replaced 'n', 'T', 'hits'. With no anchor, returns (None, 0) and
+    leaves items untouched so the caller can fall back to per-break fitting.
+    """
+    anchors = [it for it in items
+               if it["nb"] >= min_matches and it["n"] == it["nb"]]
+    if not anchors:
+        return (None, 0)
+    proposals = sorted(it["T"] - it["wt"] for it in anchors)
+    candidates, group = [], [proposals[0]]
+    for g in proposals[1:]:
+        if g - group[0] <= offset_tol:
+            group.append(g)
+        else:
+            candidates.append(statistics.median(group))
+            group = [g]
+    candidates.append(statistics.median(group))
+
+    def inside(expected, rels):
+        if expected + rels[0] < 0:
+            return False
+        return duration is None or expected + rels[0] <= duration
+
+    def refit_all(start):
+        out, total = [], 0
+        for it in items:
+            rels = [r for _, r in it["bounds"]]
+            expected = start + it["wt"]
+            if not rels or not inside(expected, rels):
+                out.append(("outside", 0, expected, [None] * len(rels)))
+                continue
+            n, T, hits = align_near(it["bounds"], silences, expected, offset_tol, tol)
+            out.append(("fitted", n, T, hits))
+            total += n
+        return total, out
+
+    scored = [(refit_all(c), c) for c in candidates]
+    (_, fits), start = max(scored, key=lambda x: x[0][0])
+    for it, (place, n, T, hits) in zip(items, fits):
+        it["place"], it["n"], it["T"], it["hits"] = place, n, T, hits
+    return (start, len(anchors))
+
+
 # ---------------------------------------------------------------------------
 # 4. main
 # ---------------------------------------------------------------------------

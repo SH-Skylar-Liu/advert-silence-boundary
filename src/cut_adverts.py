@@ -58,7 +58,7 @@ import os
 import re
 import subprocess
 
-from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s
+from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s, align_by_recording
 
 from refine_first_frame import HAVE_SCENEDETECT, refine_start
 
@@ -82,6 +82,16 @@ def cut(recording: str, start: float, dur: float, out: str) -> bool:
     return r.returncode == 0
 
 
+def probe_duration(path: str):
+    """Recording length in seconds from the container header; None if unreadable."""
+    try:
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                            "-of", "csv=p=0", path], capture_output=True, text=True, timeout=60)
+        return float(r.stdout.strip())
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("recording")
@@ -94,6 +104,11 @@ def main() -> None:
                     help="min seconds after last advert start before searching its end silence")
     ap.add_argument("--offset-tol", type=float, default=5.0,
                     help="max deviation (s) of a break's offset from the expected value")
+    ap.add_argument("--align", choices=["break", "recording"], default="break",
+                    help="break (default): fit each break on its own, then drop a break "
+                         "whose offset disagrees with the previous kept one. recording: fix "
+                         "the start of the recording from the fully matched breaks, then "
+                         "check every break only where it must be (11 Oct 2026)")
     ap.add_argument("--dry-run", action="store_true", help="print the cut plan, do not cut")
     # --- Stage B (first-frame refinement) and the cut ledger ---
     ap.add_argument("--no-refine", action="store_true",
@@ -178,6 +193,28 @@ def main() -> None:
                       "bounds": br["bounds"], "ads": br.get("adverts", [])})
     items.sort(key=lambda x: x["wt"])
 
+    # --- recording-level alignment (opt-in) ---
+    # With the start of the recording fixed, each break is fitted only where the
+    # schedule puts it, so there is no chain of "agrees with the previous kept break"
+    # for one chance fit to poison. Falls back to per-break fitting when no break in
+    # the recording matched completely.
+    by_recording = False
+    if a.align == "recording":
+        start, n_anchors = align_by_recording(items, silences, a.tol, a.offset_tol,
+                                              a.min_matches, probe_duration(a.recording))
+        if start is None:
+            print("[align] no fully matched break to fix the recording start; "
+                  "falling back to per-break fitting")
+        else:
+            by_recording = True
+            print(f"[align] recording start fixed at wall-clock {start * -1:.1f}s "
+                  f"from {n_anchors} fully matched break(s)")
+            for it in items:
+                if it.get("place") == "outside":
+                    print(f"[outside] {it['label']}: expected at {start + it['wt']:.0f}s, "
+                          "not in this recording")
+            items = [it for it in items if it.get("place") != "outside"]
+
     # offset-consistency + full-match filter
     kept = []
     for it in items:
@@ -190,7 +227,7 @@ def main() -> None:
             print(f"[drop] {it['label']}: only {it['n']}/{it['nb']} boundaries matched "
                   f"({rate:.0%} < {a.min_match_rate:.0%}, or fewer than {a.min_matches})")
             continue
-        if kept:
+        if kept and not by_recording:
             p = kept[-1]
             expected = p["T"] + (it["wt"] - p["wt"])
             if abs(it["T"] - expected) > a.offset_tol:
