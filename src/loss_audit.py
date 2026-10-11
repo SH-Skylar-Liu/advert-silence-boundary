@@ -988,14 +988,22 @@ def cmd_fillcheck(a):
              ("at least 2/3 matched", lambda n, nb: n * 3 >= nb * 2),
              ("at least half matched", lambda n, nb: n * 2 >= nb)]
     null_table = []
+    sizes = [("all sizes", lambda nb: True), ("3-4 boundaries", lambda nb: nb <= 4),
+             ("5-7 boundaries", lambda nb: 5 <= nb <= 7), ("8 or more", lambda nb: nb >= 8)]
     if nulls:
-        for name, ok in rules:
-            real = sum(1 for n, nb in here if n >= 3 and ok(n, nb))
-            false = sum(1 for n, nb in nulls if n >= 3 and ok(n, nb))
-            null_table.append([name, real, pct(real, len(here)), false, pct(false, len(nulls))])
+        for sname, sz in sizes:
+            h = [(n, nb) for n, nb in here if sz(nb)]
+            z = [(n, nb) for n, nb in nulls if sz(nb)]
+            if not z:
+                continue
+            for name, ok in rules:
+                real = sum(1 for n, nb in h if n >= 3 and ok(n, nb))
+                false = sum(1 for n, nb in z if n >= 3 and ok(n, nb))
+                null_table.append([sname, name, real, pct(real, len(h)), false, pct(false, len(z)),
+                                   len(h), len(z)])
         write(out / "chance_by_rule.csv",
-              ["rule (and at least 3 matched)", "breaks passing where they belong", "share",
-               "null positions passing", "share"], null_table)
+              ["break size", "rule (and at least 3 matched)", "breaks passing where they belong",
+               "share", "null positions passing", "share", "breaks", "null fits"], null_table)
 
     lines = [f"run: {a.run}", "",
              "LEAVE-ONE-OUT: error of a boundary predicted from the rest of its break",
@@ -1009,9 +1017,16 @@ def cmd_fillcheck(a):
     for k in sorted(gain):
         lines.append(f"  {k[0]:<14} missing {k[1]:<30} {gain[k]:>5,} breaks {slots_gain[k]:>6,} slots")
     if null_table:
-        lines += ["", f"CHANCE: {len(here):,} breaks fitted where they belong, {len(nulls):,} fits in programme",
-                  f"  {'rule (with at least 3 matched)':<34}{'pass, in place':>16}{'pass, in programme':>22}"]
-        lines += [f"  {t[0]:<34}{t[1]:>8,} {t[2]:>7}{t[3]:>14,} {t[4]:>7}" for t in null_table]
+        lines += ["", f"CHANCE: {len(here):,} breaks fitted where they belong, {len(nulls):,} fits five and seven",
+                  "minutes either side. A fit that far from a LONG break can still lie inside it, so the",
+                  "figures for 8 or more boundaries overstate chance; those for short breaks do not."]
+        last = None
+        for t in null_table:
+            if t[0] != last:
+                lines += ["", f"  {t[0]}  ({t[6]:,} breaks, {t[7]:,} null fits)",
+                          f"    {'rule (with at least 3 matched)':<32}{'pass, in place':>16}{'pass, elsewhere':>20}"]
+                last = t[0]
+            lines += [f"    {t[1]:<32}{t[2]:>8,} {t[3]:>7}{t[4]:>12,} {t[5]:>7}"]
     (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
 
@@ -1108,6 +1123,8 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--seed", type=int, default=20261010)
     p.add_argument("--per-group", type=int, default=12, help="sampled cut points per group")
+    p.add_argument("--clean-schedule", action="store_true")
+    p.add_argument("--own-channel", action="store_true")
     p.set_defaults(fn=cmd_misses)
     p = sub.add_parser("anchor")
     p.add_argument("--run", required=True)
