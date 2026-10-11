@@ -217,8 +217,12 @@ def main() -> None:
         start, n_anchors, report = align_by_recording(items, silences, a.tol, a.offset_tol,
                                                       a.min_matches, probe_duration(a.recording))
         if start is None:
-            print("[align] no fully matched break to fix the recording start; "
-                  "falling back to per-break fitting")
+            print("[align] no recording start that two breaks confirm"
+                  + (" (no fully matched break)" if not n_anchors else "")
+                  + "; falling back to per-break fitting")
+            for c, full, total in report[:6]:
+                print(f"[align]   candidate {c * -1:9.1f}s: {full} break(s) match completely, "
+                      f"{total} boundaries in all")
         else:
             by_recording = True
             print(f"[align] recording start fixed at wall-clock {start * -1:.1f}s "
@@ -390,6 +394,10 @@ def main() -> None:
                 "refine_backend": refine_backend if do_refine else "",   # thresholds differ per backend
                 "min_scene_len": "" if a.min_scene_len is None else a.min_scene_len,
                 "start_source": sources[i],   # silence = matched; schedule = filled from T
+                # How many breaks match completely under the recording start this break
+                # was placed by (--align recording). Empty = placed on its own fit, with
+                # no other break to vouch for the position.
+                "start_confirmed_by": it.get("confirmed_by", ""),
                 "end_s": f"{end_cut:.3f}", "duration_s": f"{dur:.3f}",
                 "break_last": "1" if i == nb - 1 else "",   # different end rule; worse precision
                 "clip": name,

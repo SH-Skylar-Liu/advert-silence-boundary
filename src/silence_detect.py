@@ -369,8 +369,10 @@ def align_by_recording(items: list, silences: list, tol: float, offset_tol: floa
     Returns (start, n_anchors, report), report being every candidate start with the
     number of breaks that match completely under it and the total of matched
     boundaries, best first. Each item gains 'place' ('fitted' | 'outside') and,
-    where fitted, replaced 'n', 'T', 'hits'. With no anchor, returns (None, 0, []) and
-    leaves items untouched so the caller can fall back to per-break fitting.
+    where fitted, replaced 'n', 'T', 'hits', and 'confirmed_by' (how many breaks match
+    completely under the chosen start). With no anchor, or no start that two breaks
+    confirm, start is None and the items are
+    left untouched so the caller can fall back to per-break fitting.
     """
     anchors = [it for it in items
                if it["nb"] >= min_matches and it["n"] == it["nb"]]
@@ -420,10 +422,18 @@ def align_by_recording(items: list, silences: list, tol: float, offset_tol: floa
                    if f[0] == "fitted" and it["nb"] >= min_matches and f[1] == it["nb"])
         scored.append(((full, total), c, fits))
     (best, start, fits) = max(scored, key=lambda x: x[0])
-    for it, (place, n, T, hits) in zip(items, fits):
-        it["place"], it["n"], it["T"], it["hits"] = place, n, T, hits
     report = sorted(((c, full, total) for (full, total), c, _ in scored),
                     key=lambda x: (-x[1], -x[2]))
+    # A start that only ONE break matches completely is that break's word alone, and
+    # a break sitting on another break's silences gives exactly that. Without a
+    # second break to confirm it the start is not used: the caller falls back to
+    # per-break fitting (2025-11-30_5_19:42:44: six candidates, one complete match
+    # each, and eleven breaks unmatched under the one that happened to score highest).
+    if best[0] < 2:
+        return (None, len(anchors), report)
+    for it, (place, n, T, hits) in zip(items, fits):
+        it["place"], it["n"], it["T"], it["hits"] = place, n, T, hits
+        it["confirmed_by"] = best[0]
     return (start, len(anchors), report)
 
 
