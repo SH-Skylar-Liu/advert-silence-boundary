@@ -214,8 +214,8 @@ def main() -> None:
     # the recording matched completely.
     by_recording = False
     if a.align == "recording":
-        start, n_anchors = align_by_recording(items, silences, a.tol, a.offset_tol,
-                                              a.min_matches, probe_duration(a.recording))
+        start, n_anchors, report = align_by_recording(items, silences, a.tol, a.offset_tol,
+                                                      a.min_matches, probe_duration(a.recording))
         if start is None:
             print("[align] no fully matched break to fix the recording start; "
                   "falling back to per-break fitting")
@@ -223,6 +223,9 @@ def main() -> None:
             by_recording = True
             print(f"[align] recording start fixed at wall-clock {start * -1:.1f}s "
                   f"from {n_anchors} fully matched break(s)")
+            for c, full, total in report[:6]:
+                print(f"[align]   candidate {c * -1:9.1f}s: {full} break(s) match completely, "
+                      f"{total} boundaries in all")
             for it in items:
                 if it.get("place") == "outside":
                     print(f"[outside] {it['label']}: expected at {start + it['wt']:.0f}s, "

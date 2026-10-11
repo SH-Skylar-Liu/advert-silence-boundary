@@ -359,21 +359,23 @@ def align_by_recording(items: list, silences: list, tol: float, offset_tol: floa
          min_matches boundaries; a complete match is very unlikely to be chance;
       2. each anchor proposes a recording start; proposals within offset_tol of one
          another are one candidate;
-      3. the candidate under which the breaks, re-fitted near their expected
-         positions, match the most boundaries in total is the recording start;
+      3. the candidate under which the most breaks, re-fitted near their expected
+         positions, match completely is the recording start (ties: most boundaries);
       4. every break is then fitted only within offset_tol of its expected position.
          A break expected before second 0 or after the end of the file is marked
          'outside' and not fitted.
     No new parameter: tol and offset_tol are the ones align() and the old filter use.
 
-    Returns (start, n_anchors). Each item gains 'place' ('fitted' | 'outside') and,
-    where fitted, replaced 'n', 'T', 'hits'. With no anchor, returns (None, 0) and
+    Returns (start, n_anchors, report), report being every candidate start with the
+    number of breaks that match completely under it and the total of matched
+    boundaries, best first. Each item gains 'place' ('fitted' | 'outside') and,
+    where fitted, replaced 'n', 'T', 'hits'. With no anchor, returns (None, 0, []) and
     leaves items untouched so the caller can fall back to per-break fitting.
     """
     anchors = [it for it in items
                if it["nb"] >= min_matches and it["n"] == it["nb"]]
     if not anchors:
-        return (None, 0)
+        return (None, 0, [])
     proposals = sorted(it["T"] - it["wt"] for it in anchors)
     candidates, group = [], [proposals[0]]
     for g in proposals[1:]:
@@ -402,11 +404,27 @@ def align_by_recording(items: list, silences: list, tol: float, offset_tol: floa
             total += n
         return total, out
 
-    scored = [(refit_all(c), c) for c in candidates]
-    (_, fits), start = max(scored, key=lambda x: x[0][0])
+    # Which candidate? The one that the most breaks CONFIRM by matching completely
+    # where it puts them; total matched boundaries only breaks a tie. Breaks that are
+    # placed correctly agree on the recording start to within a second (200 of 239
+    # fully matched breaks in the 150-recording sample; the other 39 were more than
+    # 5 s out, none in between), so a true start gathers several complete matches,
+    # while a false one, taken from a break sitting on another break's silences,
+    # gathers its own and little else. Ranking by total boundaries alone (the rule
+    # until 13 Oct 2026) let a false start win where advert lengths are regular
+    # enough for many breaks to pick up a few stray matches each.
+    scored = []
+    for c in candidates:
+        total, fits = refit_all(c)
+        full = sum(1 for it, f in zip(items, fits)
+                   if f[0] == "fitted" and it["nb"] >= min_matches and f[1] == it["nb"])
+        scored.append(((full, total), c, fits))
+    (best, start, fits) = max(scored, key=lambda x: x[0])
     for it, (place, n, T, hits) in zip(items, fits):
         it["place"], it["n"], it["T"], it["hits"] = place, n, T, hits
-    return (start, len(anchors))
+    report = sorted(((c, full, total) for (full, total), c, _ in scored),
+                    key=lambda x: (-x[1], -x[2]))
+    return (start, len(anchors), report)
 
 
 # ---------------------------------------------------------------------------
