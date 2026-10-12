@@ -29,6 +29,10 @@ Three subcommands, each writing CSV tables plus a plain-text summary to --out:
            the boundaries that did find a silence, and what each acceptance rule
            would add in recordings with a confirmed start
 
+  precision slot deviation and audio offset of a refined run by group (new against
+           already known, confirmed against not, short breaks against long), and a
+           seeded sample of cut points to check frame by frame
+
   anchor   long silences
            (audio-picture offset by silence length, clips over 120 s, and a
            simulation of anchoring long silences on the silence end)
@@ -1032,6 +1036,122 @@ def cmd_fillcheck(a):
 
 
 # ---------------------------------------------------------------------------
+def cmd_precision(a):
+    """Are the cut points of a run as well placed as before, and which should be
+    looked at by eye?
+
+    Two automatic layers, per group of cut points:
+      slot deviation   |clip length - nearest scheduled slot|: agreement with the
+                       schedule, NOT position (a uniform shift leaves it unchanged);
+      audio offset     cut point minus the end of its silence, which comes from the
+                       audio alone and shows a systematic drift if there is one.
+    Groups: cut points the reference run also has against those only this run has
+    (--ref, matched within 0.5 s on the Stage A cut); recording start confirmed by
+    two breaks against not; breaks of 3-4 boundaries against longer ones; break-first
+    against the rest; year.
+
+    Then a seeded sample for frame-by-frame checking, drawn from the groups whose
+    position has the least support, with the frame_strip.py command for each.
+    """
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    rows, _, _ = load_run(Path(a.run))
+    ref = defaultdict(list)
+    if a.ref:
+        rrows, _, _ = load_run(Path(a.ref))
+        for (stem, _, _), r in rrows.items():
+            try:
+                ref[stem].append(float(r["start_silence_mid_s"]))
+            except (KeyError, ValueError):
+                pass
+    size = Counter((stem, br) for (stem, br, _) in rows)
+    items = []
+    for (stem, br, pos), r in rows.items():
+        if any(x in stem for x in a.exclude):
+            continue
+        try:
+            mid, start, dur = float(r["start_silence_mid_s"]), float(r["start_s"]), float(r["duration_s"])
+        except (KeyError, ValueError):
+            continue
+        se = float(r["silence_end_s"]) if r.get("silence_end_s") else None
+        conf = str(r.get("start_confirmed_by", ""))
+        items.append({
+            "stem": stem, "br": br, "pos": pos, "start": start, "dur": dur,
+            "dev": deviation(dur) if dur <= 120 else None,
+            "delta": (start - se) if se is not None else None,
+            "status": r.get("refine_status", ""), "brand": r.get("brand", ""),
+            "uid": r.get("unique_id", ""), "last": r.get("break_last", "") == "1",
+            "new": bool(a.ref) and not any(abs(mid - t) <= 0.5 for t in ref.get(stem, [])),
+            "confirmed": conf.isdigit() and int(conf) >= 2,
+            "small": size[(stem, br)] <= 4, "first": pos == 1, "year": parse_stem(stem)[0]})
+
+    med = lambda v: statistics.median(v) if v else float("nan")
+
+    def row(name, sel):
+        d = [x["dev"] for x in sel if x["dev"] is not None]
+        dl = [x["delta"] for x in sel if x["delta"] is not None]
+        over = sum(1 for x in sel if x["dev"] is None)
+        return [name, len(sel), f"{med(d):.3f}", pct(sum(v <= 0.2 for v in d), len(d)), over,
+                f"{1000 * med(dl):.0f}", pct(sum(v > 0.08 for v in dl), len(dl)),
+                pct(sum(1 for x in sel if x["status"] == "refined"), len(sel)),
+                pct(sum(1 for x in sel if x["status"] == "reverted-past-silence"), len(sel))]
+
+    groups = [("all cut points", lambda x: True)]
+    if a.ref:
+        groups += [("also in the reference run", lambda x: not x["new"]),
+                   ("only in this run", lambda x: x["new"])]
+    groups += [("start confirmed by two breaks", lambda x: x["confirmed"]),
+               ("start not confirmed", lambda x: not x["confirmed"]),
+               ("break of 3-4 boundaries", lambda x: x["small"]),
+               ("break of 5 or more", lambda x: not x["small"]),
+               ("break-first", lambda x: x["first"]), ("within break", lambda x: not x["first"])]
+    groups += [(y, (lambda x, y=y: x["year"] == y)) for y in sorted({x["year"] for x in items})]
+    table = [row(n, [x for x in items if f(x)]) for n, f in groups]
+    table = [t for t in table if t[1]]
+    write(out / "precision_by_group.csv",
+          ["group", "cut_points", "median_slot_dev_s", "slot_dev_within_0.2s", "clips_over_120s",
+           "median_start_minus_silence_end_ms", "start_over_80ms_past_silence_end",
+           "refined", "reverted_by_guard"], table)
+
+    # sample for the eye: least-supported positions first
+    rng = random.Random(a.seed)
+    strata = [("only in this run, start confirmed", lambda x: x["new"] and x["confirmed"]),
+              ("start not confirmed, only break kept in its recording",
+               lambda x: not x["confirmed"] and kept_breaks[x["stem"]] == 1),
+              ("break of 3-4 boundaries", lambda x: x["small"]),
+              ("break-first, also in the reference run", lambda x: x["first"] and not x["new"]),
+              ("within break, also in the reference run", lambda x: not x["first"] and not x["new"])]
+    kept_breaks = Counter()
+    for stem, br in size:
+        kept_breaks[stem] += 1
+    taken, sample = set(), []
+    for name, f in strata:
+        pool = sorted([x for x in items if f(x) and (x["stem"], x["br"], x["pos"]) not in taken],
+                      key=lambda x: (x["stem"], x["br"], x["pos"]))
+        for x in rng.sample(pool, min(a.per_group, len(pool))):
+            taken.add((x["stem"], x["br"], x["pos"]))
+            cmd = (f'python3 src/frame_strip.py "{a.src}/{x["stem"]}.mp4" --at {x["start"]:.3f} '
+                   f'--before 0.4 --after 1.0 --out "strips/{len(sample) + 1:02d}.html"')
+            sample.append([len(sample) + 1, name, x["stem"], x["br"], x["pos"], f'{x["start"]:.3f}',
+                           x["status"], x["brand"], x["uid"], "", "", "", cmd])
+    write(out / "manual_sample.csv",
+          ["n", "stratum", "recording", "break", "pos", "start_s", "refine_status", "schedule_brand",
+           "unique_id", "truth_s", "brand_ok", "note", "command"], sample)
+
+    lines = [f"run: {a.run}", f"reference: {a.ref or '(none)'}", "",
+             "slot dev = |clip length - nearest slot|, clips over 120 s set aside; agreement, not position",
+             "offset   = cut point minus end of its silence (audio); past +80 ms the guard should have acted",
+             "",
+             f"  {'group':<32}{'n':>7} {'slot dev':>9} {'<=0.2s':>7} {'>120s':>6} {'offset ms':>10} {'>+80ms':>7} {'refined':>8} {'reverted':>9}"]
+    lines += [f"  {t[0]:<32}{t[1]:>7,} {t[2]:>9} {t[3]:>7} {t[4]:>6} {t[5]:>10} {t[6]:>7} {t[7]:>8} {t[8]:>9}"
+              for t in table]
+    lines += ["", f"manual_sample.csv: {len(sample)} cut points, seed {a.seed}"]
+    lines += [f"  {n:<58}{sum(1 for r in sample if r[1] == n):>3}" for n, _ in strata]
+    (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+
+
+# ---------------------------------------------------------------------------
 def cmd_selftest(_):
     """Synthetic schedule + ledger with known answers. Touches no real data."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -1159,6 +1279,15 @@ def main():
     p.add_argument("--clean-schedule", action="store_true")
     p.add_argument("--own-channel", action="store_true")
     p.set_defaults(fn=cmd_fillcheck)
+    p = sub.add_parser("precision")
+    p.add_argument("--run", required=True, help="a run made WITH Stage B refinement")
+    p.add_argument("--ref", help="an earlier run on the same recordings; its cut points mark what is new")
+    p.add_argument("--src", required=True, help="recordings directory (for the frame_strip commands)")
+    p.add_argument("--out", required=True)
+    p.add_argument("--exclude", nargs="+", default=[], metavar="NAME")
+    p.add_argument("--seed", type=int, default=20261012)
+    p.add_argument("--per-group", type=int, default=4, help="cut points sampled per stratum")
+    p.set_defaults(fn=cmd_precision)
     p = sub.add_parser("selftest")
     p.set_defaults(fn=cmd_selftest)
     a = ap.parse_args()
