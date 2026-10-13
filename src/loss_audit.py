@@ -58,7 +58,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from silence_detect import clean_breaks, own_run, name_time_of, id_duration   # noqa: E402  (as the cutter reads it)
+from silence_detect import clean_breaks, own_run, name_time_of, id_duration, is_placeholder   # noqa: E402  (as the cutter reads it)
 
 SLOTS = [10, 15, 20, 30, 40, 45, 60, 90]
 PLACEHOLDER = "SKYADSMART"
@@ -76,7 +76,7 @@ def hms_to_s(t: str) -> float:
 
 
 def is_ph(ad: dict) -> bool:
-    return str(ad.get("unique_id", "")).startswith(PLACEHOLDER)
+    return is_placeholder(ad.get("unique_id"))
 
 
 def collapse(br: dict) -> list:

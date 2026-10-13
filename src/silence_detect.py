@@ -77,6 +77,18 @@ def hms_to_s(t: str) -> float:
 
 
 PLACEHOLDER_PREFIX = "SKYADSMART"
+
+
+def is_placeholder(unique_id) -> bool:
+    """A record that stands for an addressable slot, not for an advert.
+
+    Three identifiers do this (all 1,670 schedule files, 13 Oct 2026): SKYADSMART...
+    (20,812 records, 5STAR and Channel 5), C4ADDRESSABLE (2,665, 2024-26) and
+    ITVADDRESSABLE (2,498, 2023-26). The slot is sold per household, so the schedule
+    cannot say which advert the recording holds there.
+    """
+    u = str(unique_id or "").upper().replace(" ", "")
+    return u.startswith(PLACEHOLDER_PREFIX) or u.endswith("ADDRESSABLE")
 BREAK_GAP_S = 120.0      # gap that splits a break when the advert's own length is unknown
 BREAK_SLACK_S = 30.0     # ... and how far past its own length the next advert may start
 
@@ -144,8 +156,17 @@ def clean_breaks(ad_breaks: list) -> list:
 
     out = []
     for br in merged:
+        # A placeholder logged at the instant of a broadcast advert is dropped. All
+        # 2,665 C4ADDRESSABLE records and 2,153 of the 2,498 ITVADDRESSABLE ones are of
+        # this kind, like every Sky AdSmart record. The other 345 ITVADDRESSABLE records
+        # hold a time slot of their own: they stay, because the boundary is real, and
+        # the cutter marks the clip as a placeholder instead of counting it an advert.
+        real_at = {a.get("start_time") for a in br["adverts"]
+                   if not is_placeholder(a.get("unique_id"))}
         ads = [a for a in br["adverts"]
-               if not str(a.get("unique_id", "")).startswith(PLACEHOLDER_PREFIX)]
+               if not (is_placeholder(a.get("unique_id"))
+                       and (str(a.get("unique_id", "")).startswith(PLACEHOLDER_PREFIX)
+                            or a.get("start_time") in real_at))]
         if not ads:
             continue
         parts, cur = [], [ads[0]]
@@ -257,11 +278,11 @@ def load_breaks(meta_path: str, clean: bool = False, own: bool = False) -> list:
             # the boundary sequence, which throws off the duration-pattern fit in
             # align(). They are therefore collapsed while building bounds, keeping
             # the real advert in preference to the placeholder.
-            is_placeholder = str(ad.get("unique_id", "")).startswith("SKYADSMART")
+            is_ph = is_placeholder(ad.get("unique_id"))
             if rel in seen_rel:
                 prev = seen_rel[rel]
-                prev_is_ph = str(prev.get("unique_id", "")).startswith("SKYADSMART")
-                if not (prev_is_ph and not is_placeholder):
+                prev_is_ph = is_placeholder(prev.get("unique_id"))
+                if not (prev_is_ph and not is_ph):
                     continue                      # the record already kept wins; drop this one
                 kept_ads = [k for k, b in zip(kept_ads, bounds) if b[1] != rel]
                 bounds = [b for b in bounds if b[1] != rel]   # replace placeholder with real advert

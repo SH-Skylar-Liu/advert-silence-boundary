@@ -58,7 +58,7 @@ import os
 import re
 import subprocess
 
-from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s, align_by_recording, null_hits, id_duration
+from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s, align_by_recording, null_hits, id_duration, is_placeholder
 
 from refine_first_frame import HAVE_SCENEDETECT, refine_start
 
@@ -418,7 +418,7 @@ def main() -> None:
                 # survive the same-timestamp collapse and become clips of their own.
                 # Flag rather than drop: the slot did broadcast something, but what it
                 # broadcast differed per household, so it cannot be treated as one advert.
-                "placeholder": "1" if str(ad.get("unique_id", "")).startswith("SKYADSMART") else "",
+                "placeholder": "1" if is_placeholder(ad.get("unique_id")) else "",
                 "start_silence_mid_s": f"{start_a:.3f}",   # Stage A cut point
                 # The silence itself, as ffmpeg reported it. The END of the silence is
                 # when audio resumes, i.e. an estimate of the advert's true start that
@@ -445,6 +445,8 @@ def main() -> None:
             })
             tag = f"  +{shift * 1000:.0f}ms" if shift else ""
             print(f"{name}  [{start_cut:8.2f} -> {end_cut:8.2f}]  {dur:5.1f}s{tag}")
+            if is_placeholder(ad.get("unique_id")):
+                continue                    # in the ledger, flagged; not a clip of the corpus
             if not a.dry_run:
                 if cut(a.recording, start_cut, dur, out):
                     made += 1
