@@ -9,8 +9,11 @@ recording holds where one of them was cut as a clip.
 SRC is the directory holding <name>_metadata.json. Each example prints one whole
 break as the schedule gives it, with the placeholder rows marked:
 
-    same time   another record of the break has the same start_time
-    OWN SLOT    no other record starts at that instant
+    same time   a broadcast advert of the same break has the same start_time
+    OTHER BREAK a broadcast advert at that instant is listed in another break of the
+                file (the schedule opens a new break at every record marked First,
+                so a placeholder and the advert beside it can land in two breaks)
+    OWN SLOT    no broadcast advert anywhere in the file starts at that instant
 
 With --run, ledger rows carrying a placeholder identifier are listed with the
 second at which the clip starts in the recording and a frame_strip.py command,
@@ -34,6 +37,16 @@ def kind_of(uid: str) -> str:
     return next((k for k in KINDS if k in u), "")
 
 
+def where(ad: dict, ads: list, real: dict) -> tuple:
+    t = ad.get("start_time")
+    if any(b is not ad and b.get("start_time") == t and not is_placeholder(b.get("unique_id")) for b in ads):
+        return ("same time", "")
+    if t in real:
+        idx, other = real[t]
+        return ("other break", f"break {idx}, {other.get('unique_id')} {other.get('brand', '')}")
+    return ("own slot", "")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("src")
@@ -47,20 +60,32 @@ def main() -> None:
     counts, examples = Counter(), {k: [] for k in a.kind}
     for f in sorted(glob.glob(os.path.join(a.src, "*_metadata.json"))):
         name = os.path.basename(f)[: -len("_metadata.json")]
-        for br in json.load(open(f, encoding="utf-8")).get("ad_breaks", []):
+        breaks = json.load(open(f, encoding="utf-8")).get("ad_breaks", [])
+        real = {}                       # start_time -> (break index, advert) of a broadcast advert
+        for br in breaks:
+            for ad in br.get("adverts", []):
+                if not is_placeholder(ad.get("unique_id")):
+                    real.setdefault(ad.get("start_time"), (br.get("index"), ad))
+        for br in breaks:
             ads = br.get("adverts", [])
             for ad in ads:
                 k = kind_of(ad.get("unique_id"))
                 if not k:
                     continue
-                own = not any(b is not ad and b.get("start_time") == ad.get("start_time") for b in ads)
-                counts[(k, "own slot" if own else "same time", name[:4])] += 1
-                if k in examples and (own or not a.own_slot):
+                ad["_where"] = where(ad, ads, real)
+                counts[(k, ad["_where"][0], name[:4])] += 1
+                if k in examples and (ad["_where"][0] == "own slot" or not a.own_slot):
                     examples[k].append((name, br))
 
+    print("TOTALS")
+    tot = Counter()
+    for (k, w, _), n in counts.items():
+        tot[(k, w)] += n
+    for key in sorted(tot):
+        print(f"  {tot[key]:>6,}  {key[0]:<15} {key[1]}")
     print("COUNTS (kind, where, year)")
     for key in sorted(counts):
-        print(f"  {counts[key]:>6,}  {key[0]:<15} {key[1]:<10} {key[2]}")
+        print(f"  {counts[key]:>6,}  {key[0]:<15} {key[1]:<12} {key[2]}")
 
     rng = random.Random(a.seed)
     for k in a.kind:
@@ -81,8 +106,10 @@ def main() -> None:
                 gap = f"{(later[0] - hms_to_s(ad['start_time'])) % 86400:.0f}s" if later else "(last)"
                 mark = ""
                 if is_placeholder(ad.get("unique_id")):
-                    own = not any(b is not ad and b.get("start_time") == ad.get("start_time") for b in ads)
-                    mark = "   <== OWN SLOT" if own else "   <== same time as a broadcast advert"
+                    w = ad.get("_where", ("", ""))
+                    mark = {"same time": "   <== same time as a broadcast advert",
+                            "other break": f"   <== OTHER BREAK holds the advert: {w[1]}",
+                            "own slot": "   <== OWN SLOT"}[w[0]]
                 print(f"  {ad.get('start_time', ''):<9} {str(ad.get('position_in_break', '')):<6} {gap:>7}  "
                       f"{str(ad.get('unique_id', '')):<18} {ad.get('brand', '')}{mark}")
 
