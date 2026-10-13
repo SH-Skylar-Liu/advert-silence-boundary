@@ -1065,6 +1065,18 @@ def cmd_precision(a):
             except (KeyError, ValueError):
                 pass
     size = Counter((stem, br) for (stem, br, _) in rows)
+    lastpos = {}
+    for (stem, br, pos) in rows:
+        lastpos[(stem, br)] = max(pos, lastpos.get((stem, br), 0))
+    # --relabel: take each clip's identifier from the schedule at its position, not
+    # from the ledger. Ledgers written before 10 Oct 2026 carry the wrong identifier
+    # on every row after a collapsed same-instant record (7,213 of 25,208 rows of the
+    # full September run), and before 14 Oct 2026 the name of a C4 or ITV placeholder
+    # in place of the advert beside it. The cut points were right; the stated length
+    # read from a wrong identifier would not be.
+    sched, relabelled = {}, 0
+    if a.relabel:
+        sched, _ = load_schedule(Path(a.src))
     items = []
     for (stem, br, pos), r in rows.items():
         if any(x in stem for x in a.exclude):
@@ -1073,6 +1085,13 @@ def cmd_precision(a):
             mid, start, dur = float(r["start_silence_mid_s"]), float(r["start_s"]), float(r["duration_s"])
         except (KeyError, ValueError):
             continue
+        if a.relabel:
+            try:
+                ad = sched[stem][br][pos - 1][1]
+                relabelled += str(ad.get("unique_id", "")) != str(r.get("unique_id", ""))
+                r = dict(r, unique_id=ad.get("unique_id", ""), brand=ad.get("brand", ""))
+            except (KeyError, IndexError):
+                pass
         se = float(r["silence_end_s"]) if r.get("silence_end_s") else None
         conf = str(r.get("start_confirmed_by", ""))
         items.append({
@@ -1084,7 +1103,8 @@ def cmd_precision(a):
             "signed": dur - id_duration(r.get("unique_id")) if id_duration(r.get("unique_id")) else None,
             "delta": (start - se) if se is not None else None,
             "status": r.get("refine_status", ""), "brand": r.get("brand", ""),
-            "uid": r.get("unique_id", ""), "last": r.get("break_last", "") == "1",
+            "uid": r.get("unique_id", ""),
+            "last": r.get("break_last", "") == "1" or pos == lastpos[(stem, br)],
             "new": bool(a.ref) and not any(abs(mid - t) <= 0.5 for t in ref.get(stem, [])),
             "confirmed": conf.isdigit() and int(conf) >= 2,
             "small": size[(stem, br)] <= 4, "first": pos == 1, "year": parse_stem(stem)[0]})
@@ -1147,7 +1167,10 @@ def cmd_precision(a):
           ["n", "stratum", "recording", "break", "pos", "start_s", "refine_status", "schedule_brand",
            "unique_id", "truth_s", "brand_ok", "note", "command"], sample)
 
-    lines = [f"run: {a.run}", f"reference: {a.ref or '(none)'}", "",
+    head = [f"run: {a.run}", f"reference: {a.ref or '(none)'}"]
+    if a.relabel:
+        head.append(f"identifiers taken from the schedule; {relabelled:,} of {len(items):,} differ from the ledger")
+    lines = head + ["",
              "slot dev = |clip length - nearest slot|, clips over 120 s set aside; agreement, not position",
              "offset   = cut point minus end of its silence (audio); past +80 ms the guard should have acted",
              "",
@@ -1314,6 +1337,12 @@ def main():
     p.add_argument("--exclude", nargs="+", default=[], metavar="NAME")
     p.add_argument("--seed", type=int, default=20261012)
     p.add_argument("--per-group", type=int, default=4, help="cut points sampled per stratum")
+    p.add_argument("--relabel", action="store_true",
+                   help="take identifiers from the schedule by position instead of the ledger "
+                        "(for ledgers written before the label fixes); read the schedule the way "
+                        "the run did, with --clean-schedule / --own-channel if it used them")
+    p.add_argument("--clean-schedule", action="store_true")
+    p.add_argument("--own-channel", action="store_true")
     p.set_defaults(fn=cmd_precision)
     p = sub.add_parser("selftest")
     p.set_defaults(fn=cmd_selftest)
