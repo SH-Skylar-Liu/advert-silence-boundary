@@ -39,8 +39,9 @@ def main() -> None:
     ap.add_argument("--min-scene-len", type=int, default=1)
     ap.add_argument("--guard-ms", type=float, default=80.0)
     ap.add_argument("--window", type=float, default=1.0)
-    ap.add_argument("--lookback", type=float, default=None,
-                    help="start the search this many seconds before the silence end (as --refine-lookback)")
+    ap.add_argument("--mute-frames", type=int, default=None,
+                    help="as --refine-mute-frames: between two adverts, start the search this many "
+                         "frames into the silence, less the guard")
     a = ap.parse_args()
 
     first = {int(k): float(v) for k, v in (x.split(":") for x in a.frames)}
@@ -59,13 +60,14 @@ def main() -> None:
         s0, s1, cut = float(led["silence_start_s"]), float(led["silence_end_s"]), float(led["start_s"])
         mid = (s0 + s1) / 2
         truth = cut + (first[n] - 10) / FPS
-        f0 = s0 if a.lookback is None else max(s0, s1 - a.lookback)
+        mute = a.mute_frames is not None and int(r["pos"]) > 1
+        f0 = s0 + (max(0.0, a.mute_frames / FPS - a.guard_ms / 1000.0) if mute else 0.0)
         cands, st = scene_changes(os.path.join(a.src, r["recording"] + ".mp4"), f0,
                                   s1 - f0 + a.guard_ms / 1000.0, None,
                                   backend=a.backend, min_scene_len=a.min_scene_len)
         fr = lambda t: (t - truth) * FPS
         e_run = fr(cut)
-        long_silence = a.lookback is None and s1 - s0 > a.window
+        long_silence = not mute and s1 - s0 > a.window
         e_sil = e_run if long_silence else fr(cands[0] if cands else mid)
         e_near = min((fr(c) for c in cands), key=abs) if cands else fr(mid)
         errs["run"].append(e_run)
