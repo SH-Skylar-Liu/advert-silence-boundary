@@ -77,7 +77,25 @@ def hms_to_s(t: str) -> float:
 
 
 PLACEHOLDER_PREFIX = "SKYADSMART"
-BREAK_GAP_S = 120.0      # no advert is this long; a longer gap inside a break is two breaks
+BREAK_GAP_S = 120.0      # gap that splits a break when the advert's own length is unknown
+BREAK_SLACK_S = 30.0     # ... and how far past its own length the next advert may start
+
+
+def id_duration(unique_id):
+    """Length in seconds that the identifier itself states, or None.
+
+    The last three characters of a unique_id are the advert's length. Over all 1,670
+    schedule files (13 Oct 2026): 71,238 of 76,401 broadcast records end in three
+    digits, the values being 5, 10, 15, 20, 30, 40, 50, 60, 90, 120 and 180; of the
+    62,001 that are followed by another advert in their break, 61,752 start exactly
+    that many seconds before it, 246 start earlier than that (something unlogged, or
+    a second break, lies between) and 3 later. This is the only place the schedule
+    gives the length of the LAST advert of a break.
+    """
+    import re
+    m = re.search(r"(\d{3})$", str(unique_id or ""))
+    d = int(m.group(1)) if m else 0
+    return d if 0 < d <= 600 else None
 
 
 def clean_breaks(ad_breaks: list) -> list:
@@ -101,7 +119,12 @@ def clean_breaks(ad_breaks: list) -> list:
        -> drop every placeholder record; drop a break left empty.
     3. In 231 breaks two consecutive adverts start more than two minutes apart: a
        break whose first record is not marked First is appended to the one before.
-       -> split a break wherever the gap exceeds BREAK_GAP_S (the longest slot is 90 s).
+       -> split a break where the next advert starts more than BREAK_SLACK_S after
+          the previous one has run its own length (id_duration), or more than
+          BREAK_GAP_S after its start where the identifier states no length. Until
+          13 Oct 2026 the rule was BREAK_GAP_S alone, on the belief that the longest
+          slot was 90 s; 82 records are 180 s adverts, and each was split from the
+          advert that follows it.
 
     Order matters: merge first, while the two halves still share a start_time.
 
@@ -127,7 +150,9 @@ def clean_breaks(ad_breaks: list) -> list:
             continue
         parts, cur = [], [ads[0]]
         for prev, a in zip(ads, ads[1:]):
-            if hms_to_s(a["start_time"]) - hms_to_s(prev["start_time"]) > BREAK_GAP_S:
+            own = id_duration(prev.get("unique_id"))
+            limit = own + BREAK_SLACK_S if own else BREAK_GAP_S
+            if hms_to_s(a["start_time"]) - hms_to_s(prev["start_time"]) > limit:
                 parts.append(cur)
                 cur = []
             cur.append(a)

@@ -58,7 +58,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from silence_detect import clean_breaks, own_run, name_time_of   # noqa: E402  (as the cutter reads it)
+from silence_detect import clean_breaks, own_run, name_time_of, id_duration   # noqa: E402  (as the cutter reads it)
 
 SLOTS = [10, 15, 20, 30, 40, 45, 60, 90]
 PLACEHOLDER = "SKYADSMART"
@@ -1078,6 +1078,10 @@ def cmd_precision(a):
         items.append({
             "stem": stem, "br": br, "pos": pos, "start": start, "dur": dur,
             "dev": deviation(dur) if dur <= 120 else None,
+            # against the length this advert's own identifier states: a 30 s advert
+            # cut to 20 s passes the nearest-slot test and fails this one
+            "own": abs(dur - id_duration(r.get("unique_id"))) if id_duration(r.get("unique_id")) else None,
+            "signed": dur - id_duration(r.get("unique_id")) if id_duration(r.get("unique_id")) else None,
             "delta": (start - se) if se is not None else None,
             "status": r.get("refine_status", ""), "brand": r.get("brand", ""),
             "uid": r.get("unique_id", ""), "last": r.get("break_last", "") == "1",
@@ -1091,7 +1095,10 @@ def cmd_precision(a):
         d = [x["dev"] for x in sel if x["dev"] is not None]
         dl = [x["delta"] for x in sel if x["delta"] is not None]
         over = sum(1 for x in sel if x["dev"] is None)
+        o = [x["own"] for x in sel if x["own"] is not None]
         return [name, len(sel), f"{med(d):.3f}", pct(sum(v <= 0.2 for v in d), len(d)), over,
+                len(o), f"{med(o):.3f}", pct(sum(v <= 0.2 for v in o), len(o)),
+                pct(sum(v > 1.0 for v in o), len(o)), pct(sum(v > 5.0 for v in o), len(o)),
                 f"{1000 * med(dl):.0f}", pct(sum(v > 0.08 for v in dl), len(dl)),
                 pct(sum(1 for x in sel if x["status"] == "refined"), len(sel)),
                 pct(sum(1 for x in sel if x["status"] == "reverted-past-silence"), len(sel))]
@@ -1104,13 +1111,15 @@ def cmd_precision(a):
                ("start not confirmed", lambda x: not x["confirmed"]),
                ("break of 3-4 boundaries", lambda x: x["small"]),
                ("break of 5 or more", lambda x: not x["small"]),
-               ("break-first", lambda x: x["first"]), ("within break", lambda x: not x["first"])]
+               ("break-first", lambda x: x["first"]), ("within break", lambda x: not x["first"]),
+               ("break-last", lambda x: x["last"]), ("not break-last", lambda x: not x["last"])]
     groups += [(y, (lambda x, y=y: x["year"] == y)) for y in sorted({x["year"] for x in items})]
     table = [row(n, [x for x in items if f(x)]) for n, f in groups]
     table = [t for t in table if t[1]]
     write(out / "precision_by_group.csv",
           ["group", "cut_points", "median_slot_dev_s", "slot_dev_within_0.2s", "clips_over_120s",
-           "median_start_minus_silence_end_ms", "start_over_80ms_past_silence_end",
+           "with_own_length", "median_own_dev_s", "own_dev_within_0.2s", "own_dev_over_1s",
+           "own_dev_over_5s", "median_start_minus_silence_end_ms", "start_over_80ms_past_silence_end",
            "refined", "reverted_by_guard"], table)
 
     # sample for the eye: least-supported positions first
@@ -1143,8 +1152,26 @@ def cmd_precision(a):
              "offset   = cut point minus end of its silence (audio); past +80 ms the guard should have acted",
              "",
              f"  {'group':<32}{'n':>7} {'slot dev':>9} {'<=0.2s':>7} {'>120s':>6} {'offset ms':>10} {'>+80ms':>7} {'refined':>8} {'reverted':>9}"]
-    lines += [f"  {t[0]:<32}{t[1]:>7,} {t[2]:>9} {t[3]:>7} {t[4]:>6} {t[5]:>10} {t[6]:>7} {t[7]:>8} {t[8]:>9}"
+    lines += [f"  {t[0]:<32}{t[1]:>7,} {t[2]:>9} {t[3]:>7} {t[4]:>6} {t[10]:>10} {t[11]:>7} {t[12]:>8} {t[13]:>9}"
               for t in table]
+    lines += ["", "own dev = |clip length - the length its own identifier states|",
+              f"  {'group':<32}{'n':>7} {'own dev':>9} {'<=0.2s':>7} {'>1s':>7} {'>5s':>7}"]
+    lines += [f"  {t[0]:<32}{t[5]:>7,} {t[6]:>9} {t[7]:>7} {t[8]:>7} {t[9]:>7}" for t in table]
+    lastc = sorted(x["signed"] for x in items if x["last"] and x["signed"] is not None)
+    if lastc:
+        q = lambda f: lastc[min(len(lastc) - 1, int(f * len(lastc)))]
+        lines += ["", f"break-last clips, clip length minus stated length (s), n={len(lastc):,}: "
+                      f"p5 {q(0.05):+.2f}  p25 {q(0.25):+.2f}  median {q(0.5):+.2f}  p75 {q(0.75):+.2f}  p95 {q(0.95):+.2f}"]
+    worst = sorted((x for x in items if x["own"] is not None and x["own"] > 5.0),
+                   key=lambda x: (x["stem"], x["br"], x["pos"]))
+    write(out / "own_dev_over_5s.csv",
+          ["recording", "break", "pos", "unique_id", "brand", "start_s", "duration_s", "stated_s",
+           "break_last", "break_size", "new", "confirmed"],
+          [[x["stem"], x["br"], x["pos"], x["uid"], x["brand"], f'{x["start"]:.3f}', f'{x["dur"]:.3f}',
+            id_duration(x["uid"]), int(x["last"]), size[(x["stem"], x["br"])], int(x["new"]),
+            int(x["confirmed"])] for x in worst])
+    lines += [f"own_dev_over_5s.csv: {len(worst)} clips in "
+              f"{len({(x['stem'], x['br']) for x in worst})} breaks"]
     lines += ["", f"manual_sample.csv: {len(sample)} cut points, seed {a.seed}"]
     lines += [f"  {n:<58}{sum(1 for r in sample if r[1] == n):>3}" for n, _ in strata]
     (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
