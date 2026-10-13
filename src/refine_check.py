@@ -24,7 +24,8 @@ import csv
 import os
 import statistics
 
-from refine_first_frame import scene_changes
+import refine_first_frame
+from refine_first_frame import scene_changes, video_start
 
 FPS = 25.0
 
@@ -42,7 +43,10 @@ def main() -> None:
     ap.add_argument("--mute-frames", type=int, default=None,
                     help="as --refine-mute-frames: between two adverts, start the search this many "
                          "frames into the silence, less the guard")
+    ap.add_argument("--correct-video-start", action="store_true",
+                    help="as cut_adverts.py --correct-video-start")
     a = ap.parse_args()
+    refine_first_frame.CORRECT_VIDEO_START = a.correct_video_start
 
     first = {int(k): float(v) for k, v in (x.split(":") for x in a.frames)}
     run = os.path.expanduser(a.run)
@@ -75,6 +79,9 @@ def main() -> None:
         errs["nearest"].append(e_near)
         shown = " ".join(f"{fr(c):+.0f}" for c in cands) or ("(none)" if st == "ok" else st)
         note = "  long silence: as run" if long_silence else ""
+        vs = video_start(os.path.join(a.src, r["recording"] + ".mp4"))
+        if vs:
+            note += f"  video starts at {vs:.2f}s"
         print(f"{n:>2} {s1 - s0:>6.2f}s {fr(mid):>+6.1f}  {shown:<46} {e_run:>+5.0f} {e_sil:>+8.0f} {e_near:>+8.0f}{note}")
     print()
     for k, v in errs.items():

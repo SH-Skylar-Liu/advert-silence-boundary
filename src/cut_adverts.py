@@ -61,6 +61,7 @@ import subprocess
 from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s, align_by_recording, null_hits, id_duration, is_placeholder
 
 from refine_first_frame import HAVE_SCENEDETECT, refine_start, scene_changes
+import refine_first_frame
 
 FPS = 25.0            # UK broadcast; used only to turn a frame count into seconds
 
@@ -141,6 +142,10 @@ def main() -> None:
                     help="with --refine-from silence: between two adverts, start the search N "
                          "frames into the silence (less the max-past-silence-end tolerance). "
                          "6 = the audio silence a commercial is delivered with at each end")
+    ap.add_argument("--correct-video-start", action="store_true",
+                    help="scenedetect only: allow for a video stream that does not start at zero "
+                         "(see refine_first_frame.CORRECT_VIDEO_START); without it Stage B looks "
+                         "that much late on such files")
     ap.add_argument("--refine-threshold", type=float, default=None,
                     help="detector threshold; defaults to the backend default (Stephen tuned nothing)")
     ap.add_argument("--max-past-silence-end", type=float, default=80.0, metavar="MS",
@@ -178,6 +183,7 @@ def main() -> None:
                          "starting within 2 s of that, else that. Both fall back to "
                          "silence-start where the identifier states no length")
     a = ap.parse_args()
+    refine_first_frame.CORRECT_VIDEO_START = a.correct_video_start
 
     do_refine = not a.no_refine
     # Backend choice: use scenedetect when importable (same implementation as

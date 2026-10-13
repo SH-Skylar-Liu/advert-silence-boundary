@@ -70,6 +70,7 @@ PASSTHROUGH = [
     ("--max-past-silence-end", "max_past_silence_end", False),
     ("--no-fill-missing", "no_fill_missing", True),
     ("--clean-schedule", "clean_schedule", True),
+    ("--correct-video-start", "correct_video_start", True),
     ("--own-channel", "own_channel", True),
     ("--confirm-partial", "confirm_partial", True),
     ("--fill-only-confirmed", "fill_only_confirmed", True),
@@ -156,6 +157,7 @@ def main() -> None:
     ap.add_argument("--align", choices=["break", "recording"], default="break",
                     help="recording = fix the recording start first (see cut_adverts.py)")
     ap.add_argument("--refine-from", choices=["midpoint", "silence"], default="midpoint")
+    ap.add_argument("--correct-video-start", action="store_true")
     ap.add_argument("--refine-mute-frames", type=int, default=None)
     ap.add_argument("--min-scene-len", type=int, default=None)
     # Missing here until 19 Sep 2026, so a threshold sweep run through this driver

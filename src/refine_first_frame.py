@@ -65,6 +65,40 @@ WINDOW_S = 1.0                 # first second only, as agreed; a wider window ca
 MIN_SHIFT_S = 0.02             # below half a frame (40 ms at 25 fps) counts as noise
 _video_cache: dict = {}
 
+# --- video stream start time ---
+# In some recordings the video stream does not start at zero: ffprobe gives
+# start_time 1.32 s for 2025-08-30_5_11:29:48, 0.64 s for 2025-05-31_5_17:48:13 and
+# 1.00 s for 2026-01-31_5_15:21:11, against 0 for the 2022 and 2024 files looked at
+# (14 Oct 2026). ffmpeg works in container time, where the audio starts at zero; so do
+# silence detection, the cut itself and frame_strip.py. PySceneDetect's OpenCV backend
+# counts frames from the first video frame, so asking it for second t returns the
+# picture of container second t + start_time. On those files Stage B was therefore
+# looking about a second late: at 3028.35 s in the first of them a hard cut from a red
+# end card to a grey frame scored no more than 11.5 against a threshold of 27, because
+# the frames examined were not the ones at that time. With CORRECT_VIDEO_START the
+# start time is subtracted before seeking and added back to what is found. Off by
+# default so that earlier runs can be reproduced.
+CORRECT_VIDEO_START = False
+_vstart_cache: dict = {}
+
+
+def video_start(recording: str) -> float:
+    """start_time of the first video stream in seconds (0.0 if it cannot be read)."""
+    if recording not in _vstart_cache:
+        try:
+            out = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                 "stream=start_time", "-of", "csv=p=0", recording],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True).stdout.strip()
+            _vstart_cache[recording] = float(out.split(",")[0])
+        except Exception:                               # noqa: BLE001
+            _vstart_cache[recording] = 0.0
+    return _vstart_cache[recording]
+
+
+def _offset(recording: str) -> float:
+    return video_start(recording) if CORRECT_VIDEO_START else 0.0
+
 
 def _refine_ffmpeg(recording: str, start_s: float, window_s: float, threshold: float | None):
     """
@@ -132,7 +166,8 @@ def refine_start(recording: str, start_s: float, window_s: float = WINDOW_S,
     try:
         video = _open(recording)
         fps = video.frame_rate
-        video.seek(FrameTimecode(start_s, fps))
+        off = _offset(recording)
+        video.seek(FrameTimecode(max(0.0, start_s - off), fps))
 
         sm = SceneManager()
         # Pass only what was asked for, so an unset run is byte-for-byte the old call
@@ -152,7 +187,7 @@ def refine_start(recording: str, start_s: float, window_s: float = WINDOW_S,
         if len(scenes) < 2:
             return start_s, 0.0, "clean"
 
-        cut_at = scenes[0][1].get_seconds()
+        cut_at = scenes[0][1].get_seconds() + off
         shift = cut_at - start_s
         if shift < MIN_SHIFT_S or shift > window_s:
             return start_s, 0.0, "clean"
@@ -191,7 +226,8 @@ def scene_changes(recording: str, start_s: float, window_s: float,
     try:
         video = _open(recording)
         fps = video.frame_rate
-        video.seek(FrameTimecode(start_s, fps))
+        off = _offset(recording)
+        video.seek(FrameTimecode(max(0.0, start_s - off), fps))
         sm = SceneManager()
         kwargs = {}
         if threshold is not None:
@@ -202,7 +238,7 @@ def scene_changes(recording: str, start_s: float, window_s: float,
         sm.detect_scenes(video=video, duration=FrameTimecode(window_s, fps), show_progress=False)
         scenes = sm.get_scene_list(start_in_scene=True)
         sm.clear()
-        cuts = [sc[1].get_seconds() for sc in scenes[:-1]]      # the last scene ends with the window
+        cuts = [sc[1].get_seconds() + off for sc in scenes[:-1]]   # the last scene ends with the window
         return [c for c in cuts if MIN_SHIFT_S <= c - start_s <= window_s], "ok"
     except Exception as e:                              # noqa: BLE001
         return [], f"error: {e}"
