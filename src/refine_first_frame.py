@@ -166,6 +166,48 @@ def refine_start(recording: str, start_s: float, window_s: float = WINDOW_S,
         return start_s, 0.0, f"error: {e}"
 
 
+def scene_changes(recording: str, start_s: float, window_s: float,
+                  threshold: float | None = None, backend: str = "auto",
+                  min_scene_len: int | None = None):
+    """Every scene change in [start_s, start_s + window_s], earliest first.
+
+    refine_start() returns the first change after its start point and nothing else.
+    Searching a whole silence needs the list, because the change wanted there is not
+    always the first one after the midpoint: it can lie before the midpoint.
+    Returns (times in seconds, status), status "ok" | "no-backend" | "error: ...".
+    """
+    if backend == "ffmpeg" or (backend == "auto" and not HAVE_SCENEDETECT):
+        try:
+            thr = FFMPEG_SCENE_THRESHOLD if threshold is None else threshold
+            cmd = [FFMPEG, "-hide_banner", "-nostats", "-ss", f"{start_s:.3f}", "-t", f"{window_s:.3f}",
+                   "-i", recording, "-an", "-vf", f"select='gt(scene,{thr})',showinfo", "-f", "null", "-"]
+            proc = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
+            times = sorted(float(m) for m in re.findall(r"pts_time:([0-9.]+)", proc.stderr))
+            return [start_s + t for t in times if MIN_SHIFT_S <= t <= window_s], "ok"
+        except Exception as e:                          # noqa: BLE001
+            return [], f"error: {e}"
+    if not HAVE_SCENEDETECT:
+        return [], "no-backend"
+    try:
+        video = _open(recording)
+        fps = video.frame_rate
+        video.seek(FrameTimecode(start_s, fps))
+        sm = SceneManager()
+        kwargs = {}
+        if threshold is not None:
+            kwargs["threshold"] = threshold
+        if min_scene_len is not None:
+            kwargs["min_scene_len"] = min_scene_len
+        sm.add_detector(ContentDetector(**kwargs))
+        sm.detect_scenes(video=video, duration=FrameTimecode(window_s, fps), show_progress=False)
+        scenes = sm.get_scene_list(start_in_scene=True)
+        sm.clear()
+        cuts = [sc[1].get_seconds() for sc in scenes[:-1]]      # the last scene ends with the window
+        return [c for c in cuts if MIN_SHIFT_S <= c - start_s <= window_s], "ok"
+    except Exception as e:                              # noqa: BLE001
+        return [], f"error: {e}"
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("recording")

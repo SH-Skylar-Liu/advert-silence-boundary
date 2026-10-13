@@ -60,7 +60,7 @@ import subprocess
 
 from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s, align_by_recording, null_hits, id_duration, is_placeholder
 
-from refine_first_frame import HAVE_SCENEDETECT, refine_start
+from refine_first_frame import HAVE_SCENEDETECT, refine_start, scene_changes
 
 FFMPEG = "ffmpeg"
 
@@ -130,6 +130,11 @@ def main() -> None:
                     help="skip first-frame refinement; use the Stage A silence midpoints only")
     ap.add_argument("--refine-window", type=float, default=1.0,
                     help="refinement search window in seconds; 1.0 as agreed, do not enlarge")
+    ap.add_argument("--refine-from", choices=["midpoint", "silence"], default="midpoint",
+                    help="where Stage B looks: one window forward from the silence midpoint "
+                         "(default), or the whole silence from its start to max-past-silence-end "
+                         "after its end, so a first frame before the midpoint can be found; "
+                         "silences longer than --refine-window keep the default")
     ap.add_argument("--refine-threshold", type=float, default=None,
                     help="detector threshold; defaults to the backend default (Stephen tuned nothing)")
     ap.add_argument("--max-past-silence-end", type=float, default=80.0, metavar="MS",
@@ -330,7 +335,33 @@ def main() -> None:
                 s_a = mid(hits[i])
                 sources.append("silence")
             s_b, shift, status = (s_a, 0.0, "off")
-            if do_refine:
+            # --- --refine-from silence: look for the first frame in the WHOLE silence ---
+            # The default searches one second forward from the silence midpoint, so a
+            # first frame that lies before the midpoint can never be found. Frame-by-frame
+            # check of 19 cut points (14 Oct 2026): in 8 the advert's first frame was 1-5
+            # frames BEFORE the midpoint, and the cut was that much late, giving the
+            # opening frames to the previous clip. In all 19 the first frame lay inside
+            # the silence, 0.20-0.59 s before its end. The search therefore starts at the
+            # start of the silence and stops max-past-silence-end after its end; the
+            # first change found is taken. A silence longer than the one-second window
+            # is left to the default, which was right on the two such cases checked.
+            # Nothing found: the midpoint stands, as before.
+            in_silence = (do_refine and a.refine_from == "silence" and hits[i] is not None
+                          and hits[i]["end"] - hits[i]["start"] <= a.refine_window)
+            if in_silence:
+                guard_s = (a.max_past_silence_end or 0.0) / 1000.0
+                cands, st = scene_changes(
+                    a.recording, hits[i]["start"], hits[i]["end"] - hits[i]["start"] + guard_s,
+                    a.refine_threshold, backend=refine_backend, min_scene_len=a.min_scene_len)
+                if st != "ok":
+                    status = st
+                    print(f"   [refine failed, falling back to silence midpoint] {st}")
+                elif cands:
+                    s_b, shift, status = cands[0], cands[0] - s_a, "refined"
+                else:
+                    status = "clean"
+                n_refined += status == "refined"
+            elif do_refine:
                 s_b, shift, status = refine_start(
                     a.recording, s_a, a.refine_window, a.refine_threshold,
                     backend=refine_backend, min_scene_len=a.min_scene_len)
