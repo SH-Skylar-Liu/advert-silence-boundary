@@ -58,7 +58,7 @@ import os
 import re
 import subprocess
 
-from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s, align_by_recording, null_hits
+from silence_detect import run_silencedetect, parse_silences, load_breaks, align, hms_to_s, align_by_recording, null_hits, id_duration
 
 from refine_first_frame import HAVE_SCENEDETECT, refine_start
 
@@ -158,10 +158,14 @@ def main() -> None:
     ap.add_argument("--min-matches", type=int, default=3,
                     help="and at least this many matched, so the fitted offset is not "
                          "resting on one or two coincidences (default 3)")
-    ap.add_argument("--last-end", choices=["silence-start", "midpoint"], default="silence-start",
+    ap.add_argument("--last-end", choices=["silence-start", "midpoint", "stated", "stated-silence"],
+                    default="silence-start",
                     help="where the LAST advert of a break ends: at the start of the "
                          "break-end silence (default), or at its midpoint (pre-12-Sep "
-                         "behaviour, which ran systematically ~1.3-1.6 s long)")
+                         "behaviour, which ran systematically ~1.3-1.6 s long); stated = its "
+                         "start plus the length in its identifier; stated-silence = the silence "
+                         "starting within 2 s of that, else that. Both fall back to "
+                         "silence-start where the identifier states no length")
     a = ap.parse_args()
 
     do_refine = not a.no_refine
@@ -377,13 +381,28 @@ def main() -> None:
                 # 12 Sep 2026 over 40 break-final clips, median error 0.593 s, with
                 # durations landing consistently 1.3-1.6 s above their scheduled slot.
                 # Audio stops when the advert ends, so the silence start is the boundary.
-                floor = it["bounds"][i][1] + T + a.min_last
-                after = [s for s in silences if s["start"] > floor]
-                if not after:
-                    print(f"[skip] {it['label']} advert {i + 1}: no end silence found")
-                    continue
-                end_sil = min(after, key=lambda s: s["start"])
-                end_cut = end_sil["start"] if a.last_end == "silence-start" else mid(end_sil)
+                #
+                # That rule takes the first silence starting --min-last seconds in, and a
+                # pause inside the advert qualifies. Against the length the identifier
+                # states (id_duration), 341 break-last clips of the 151-recording sample
+                # (13 Oct 2026): 12.6% more than 5 s out, nearly all cut short (a 30 s
+                # advert ended at 8-22 s); the rest end a median 0.40 s before the stated
+                # length. --last-end stated / stated-silence use the stated length instead.
+                stated = id_duration(ads[i].get("unique_id")) if i < len(ads) else None
+                if a.last_end in ("stated", "stated-silence") and stated:
+                    end_cut = start_cut + stated
+                    if a.last_end == "stated-silence":
+                        near = [s for s in silences if abs(s["start"] - end_cut) <= 2.0]
+                        if near:
+                            end_cut = min(near, key=lambda s: abs(s["start"] - end_cut))["start"]
+                else:
+                    floor = it["bounds"][i][1] + T + a.min_last
+                    after = [s for s in silences if s["start"] > floor]
+                    if not after:
+                        print(f"[skip] {it['label']} advert {i + 1}: no end silence found")
+                        continue
+                    end_sil = min(after, key=lambda s: s["start"])
+                    end_cut = mid(end_sil) if a.last_end == "midpoint" else end_sil["start"]
             dur = end_cut - start_cut
             if dur <= 0:
                 continue

@@ -168,7 +168,8 @@ def main() -> None:
                     help="keep only the recording's own run of breaks (see cut_adverts.py)")
     ap.add_argument("--clean-schedule", action="store_true",
                     help="repair break segmentation in the schedule first (see cut_adverts.py)")
-    ap.add_argument("--last-end", choices=["silence-start", "midpoint"], default="silence-start")
+    ap.add_argument("--last-end", choices=["silence-start", "midpoint", "stated", "stated-silence"],
+                    default="silence-start")
     ap.add_argument("--noise", type=float, default=-40)
     ap.add_argument("--min-dur", type=float, default=0.2)
     ap.add_argument("--redo", action="store_true", help="reprocess even if a ledger exists")
