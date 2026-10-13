@@ -135,6 +135,9 @@ def main() -> None:
                          "(default), or the whole silence from its start to max-past-silence-end "
                          "after its end, so a first frame before the midpoint can be found; "
                          "silences longer than --refine-window keep the default")
+    ap.add_argument("--refine-lookback", type=float, default=None, metavar="S",
+                    help="with --refine-from silence: start the search S seconds before the end "
+                         "of the silence (not before its start), and apply it to long silences too")
     ap.add_argument("--refine-threshold", type=float, default=None,
                     help="detector threshold; defaults to the backend default (Stephen tuned nothing)")
     ap.add_argument("--max-past-silence-end", type=float, default=80.0, metavar="MS",
@@ -346,12 +349,26 @@ def main() -> None:
             # first change found is taken. A silence longer than the one-second window
             # is left to the default, which was right on the two such cases checked.
             # Nothing found: the midpoint stands, as before.
+            #
+            # --refine-lookback S starts the search S seconds before the END of the
+            # silence instead (never before its start). Tested on the same 19 cut points
+            # (refine_check.py, 14 Oct 2026): searching the whole silence made 14 exact
+            # against 8 and left none late, but in one (2025-05-31_5_17:48:13 b152 p4)
+            # the only change found lay 2 frames into the silence, 15 frames before the
+            # advert: the previous advert's last shot change, after its sound had gone.
+            # A change that early is not the boundary. With the lookback the long
+            # silences need no exception. The value comes from those 19 cut points
+            # (largest gap first frame -> silence end 0.59 s), so it is fitted, not derived.
             in_silence = (do_refine and a.refine_from == "silence" and hits[i] is not None
-                          and hits[i]["end"] - hits[i]["start"] <= a.refine_window)
+                          and (a.refine_lookback is not None
+                               or hits[i]["end"] - hits[i]["start"] <= a.refine_window))
             if in_silence:
                 guard_s = (a.max_past_silence_end or 0.0) / 1000.0
+                from_s = hits[i]["start"]
+                if a.refine_lookback is not None:
+                    from_s = max(from_s, hits[i]["end"] - a.refine_lookback)
                 cands, st = scene_changes(
-                    a.recording, hits[i]["start"], hits[i]["end"] - hits[i]["start"] + guard_s,
+                    a.recording, from_s, hits[i]["end"] - from_s + guard_s,
                     a.refine_threshold, backend=refine_backend, min_scene_len=a.min_scene_len)
                 if st != "ok":
                     status = st

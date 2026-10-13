@@ -64,6 +64,7 @@ PASSTHROUGH = [
     ("--min-matches", "min_matches", False),
     ("--last-end", "last_end", False),
     ("--refine-from", "refine_from", False),
+    ("--refine-lookback", "refine_lookback", False),
     ("--min-scene-len", "min_scene_len", False),
     ("--refine-threshold", "refine_threshold", False),
     ("--max-past-silence-end", "max_past_silence_end", False),
@@ -155,6 +156,7 @@ def main() -> None:
     ap.add_argument("--align", choices=["break", "recording"], default="break",
                     help="recording = fix the recording start first (see cut_adverts.py)")
     ap.add_argument("--refine-from", choices=["midpoint", "silence"], default="midpoint")
+    ap.add_argument("--refine-lookback", type=float, default=None)
     ap.add_argument("--min-scene-len", type=int, default=None)
     # Missing here until 19 Sep 2026, so a threshold sweep run through this driver
     # exited at argument parsing and wrote no ledgers at all.
