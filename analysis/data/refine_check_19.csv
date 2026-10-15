@@ -1,0 +1,4 @@
+stage_b,n,exact,within_2_frames,late_over_2,early_over_2,median_abs_error_frames,worst_frames
+as in the September run,19,8,13,3,3,1.0,7
+search the silence + 6-frame bound,19,14,16,0,3,0.3,7
+plus video start correction,19,16,19,0,0,0.2,1

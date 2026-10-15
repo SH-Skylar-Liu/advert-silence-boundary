@@ -1,0 +1,7 @@
+rule,slots,filled,unique_adverts
+all matched (strict),2913,0,2340
+at most 1 filled,2949,5,2364
+at most 2 filled,2988,17,2394
+hit rate >= 0.8,2945,4,2360
+hit rate >= 0.66,2995,18,2397
+hit rate >= 0.5,3025,32,2418

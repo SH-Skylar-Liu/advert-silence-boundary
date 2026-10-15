@@ -64,6 +64,7 @@ before any model runs; the vision-language model (grey) only describes finished 
 |---|---|
 | [docs/method.md](docs/method.md) | Method, settings, batch reproduction, design notes, known limitations |
 | [docs/results_2026-10.md](docs/results_2026-10.md) | Current figures: the September full run and the October sample tests |
+| [analysis/ch04_results.ipynb](analysis/ch04_results.ipynb) | Notebook recomputing Table 4.6 of the thesis from summary data ([static HTML](docs/ch04_results.html)); the data are hand-transcribed, see [analysis/data/README.md](analysis/data/README.md) |
 | [docs/results_2026-09.md](docs/results_2026-09.md) | Measurement log for August–September 2026, kept as a historical record |
 | [docs/pipeline_explainer.html](docs/pipeline_explainer.html) | Single-page interactive walkthrough (open in a browser) |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
@@ -89,6 +90,8 @@ src/
   show_placeholders.py    addressable-advertising placeholder records and where their slots sit
   # captioning (annotation stage, not part of segmentation)
   vllm_caption.py         captioning client + concurrency benchmark (standard library only)
+analysis/
+  ch04_results.ipynb      Table 4.6 recomputed from summary data; data/ holds the summaries
 examples/
   example_cut_ledger.csv  synthetic ledger so the ablation runs without archive data
 docs/                     see the table above
