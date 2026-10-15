@@ -1,5 +1,39 @@
 # Changelog
 
+**1.8 — 10–15 Oct 2026**
+
+Every new option is off by default, so earlier commands reproduce earlier runs. All of
+them are tested on a sample of 151 recordings only. Figures in
+[docs/results_2026-10.md](docs/results_2026-10.md).
+
+- `loss_audit.py`: where scheduled adverts are lost (`recon`, `misses`, `schedule`,
+  `offsets`), the accidental-match test (`fillcheck`, the chance table), precision by group
+  (`precision`), and two runs compared (`diff`). `precision` measures each clip against
+  the length in its own identifier; `--relabel` takes identifiers from the schedule by
+  position, for ledgers written before the label fixes.
+- Ledger rows labelled from the collapsed advert list; 7,929 rows of the September run had
+  been labelled wrongly.
+- `--align recording`: fix the recording start where at least two fully matched breaks
+  agree on it, then check each break only where it must be; `start_confirmed_by` column.
+  `--confirm-partial` and `--fill-only-confirmed` for testing the looser rule within it.
+- `--clean-schedule`: merge breaks that start at the same second; drop `SKYADSMART…`,
+  `C4ADDRESSABLE` and `ITVADDRESSABLE` placeholders that share a start with a real advert,
+  keep the boundary of the rest with `placeholder=1` and no clip; split a break where the
+  next advert starts more than 30 s after the previous one should have ended.
+- `--own-channel`: keep only the run of breaks that belongs to the recording's channel.
+- Advert length read from the last three digits of the identifier.
+- Stage B: `--refine-from silence` searches the whole silence; `--refine-mute-frames 6`
+  starts the search six frames in, from the Clearcast delivery specification;
+  `--correct-video-start` allows for a video stream that starts after the audio, which is
+  why refinement appeared to fail on 2025–2026 recordings. `refine_check.py` tests Stage B
+  against frame-checked cut points. A fitted `--refine-lookback` was added and removed.
+- `--last-end stated` and `--last-end stated-silence` for the last clip of a break;
+  untested.
+- `show_placeholders.py`: breaks holding placeholder records, and where their slots sit.
+- Docs: README and `method.md` brought in line with the thesis (Chapter 4, 14 Oct 2026);
+  the settings of each run listed; the looser acceptance rule recorded as rejected;
+  `results_2026-10.md` added; internal paths removed.
+
 **1.7 — 20 Sep 2026**
 - `silence_stats.py`: measures, from the ledger alone, how long the silences are and
   whether the one-second refinement window reaches past their end.

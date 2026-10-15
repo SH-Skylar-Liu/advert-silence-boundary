@@ -2,13 +2,10 @@
 
 ![Cutting single adverts out of broadcast recordings](docs/img/banner.png)
 
-**Version 1.7** (20 Sep 2026)
+**Version 1.8** (15 Oct 2026)
 
-> ⚠️ **PRIVATE REPOSITORY — INTERNAL PATHS INCLUDED.**
-> Commands and defaults in this repository refer to real BFI server paths and account
-> names so that a collaborator can reproduce a run without translation. **Before this
-> repository is made public** (SSH Open Marketplace, JOHD, or any external release),
-> replace every `/home/shihan/...` path, account name and hostname with placeholders.
+The recordings and their metadata belong to the BFI National Archive and are not in this
+repository. In the commands below, `$SRC` stands for the directory that holds them.
 
 Deterministic segmentation of individual television adverts from full-programme
 recordings, using the broadcast schedule as a prior. No machine learning is used to
@@ -19,10 +16,17 @@ describe the content of each extracted advert.
 That separation is the point. Corpus construction is deterministic and reproducible;
 interpretation is where the model enters.
 
-**Headline result.** Across all 1,670 delivered source recordings: 24,944 cut points,
-median deviation from the nearest advert slot length **0.041 s (1.0 frame)**, **74%**
-within 0.2 s. Strongest on 2022–2024 material; degrades from 2025. Details, ablations
-and caveats in [docs/method.md](docs/method.md).
+**Results so far.** The September 2026 run over all 1,670 delivered recordings produced
+25,208 cut points. Each clip is compared with the length stated in its own advert
+identifier (24,872 clips have one): median difference **0.042 s (about one frame)**,
+**74%** within 0.2 s, **83%** leaving aside the last clip of each break. These figures
+measure consistency with scheduled durations, not the position of a cut point.
+
+Changes made in October 2026 have been tested on a sample of 151 recordings and not yet
+run on the whole delivery. On the sample they raise the share of clips within 0.2 s of
+their own length, last clips aside, from 82.4% to 94.5%. All of them are off by default.
+Figures, their basis and their status are in [docs/results_2026-10.md](docs/results_2026-10.md);
+the method and the settings used for each run are in [docs/method.md](docs/method.md).
 
 ## How it works
 
@@ -58,8 +62,9 @@ before any model runs; the vision-language model (grey) only describes finished 
 
 | File | Contents |
 |---|---|
-| [docs/method.md](docs/method.md) | Method, measured results, batch reproduction, design notes, known limitations |
-| [docs/results_2026-09.md](docs/results_2026-09.md) | Full measurement log, including what failed |
+| [docs/method.md](docs/method.md) | Method, settings, batch reproduction, design notes, known limitations |
+| [docs/results_2026-10.md](docs/results_2026-10.md) | Current figures: the September full run and the October sample tests |
+| [docs/results_2026-09.md](docs/results_2026-09.md) | Measurement log for August–September 2026, kept as a historical record |
 | [docs/pipeline_explainer.html](docs/pipeline_explainer.html) | Single-page interactive walkthrough (open in a browser) |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |
 
@@ -79,7 +84,10 @@ src/
   silence_stats.py        silence lengths vs. the one-second refinement window
   frame_strip.py          every frame around a cut point as one page, for ground truth
   survey_silence.py       stratified sample by channel x year; where does the cue hold?
-  # captioning
+  loss_audit.py           where scheduled adverts are lost, accidental-match test, precision by group
+  refine_check.py         re-run Stage B on frame-checked cut points and compare with the truth
+  show_placeholders.py    addressable-advertising placeholder records and where their slots sit
+  # captioning (annotation stage, not part of segmentation)
   vllm_caption.py         captioning client + concurrency benchmark (standard library only)
 examples/
   example_cut_ledger.csv  synthetic ledger so the ablation runs without archive data
@@ -129,6 +137,12 @@ python3 src/compare_end_modes.py plan.csv --per-clip
 python3 src/cut_adverts.py RECORDING.mp4 --metadata breaks.json \
     --outdir /path/to/output --cut-csv plan.csv --backend ffmpeg
 ```
+
+The code defaults are not the settings used in the thesis. In particular, break acceptance
+defaults to the looser rule (`--min-match-rate 0.5` with boundaries filled from the
+schedule), which was tested and rejected; the thesis runs use `--min-match-rate 1
+--no-fill-missing`. The full command for each run is in
+[docs/method.md](docs/method.md#settings-used-for-each-run).
 
 The ablation runs out of the box on the bundled example:
 
