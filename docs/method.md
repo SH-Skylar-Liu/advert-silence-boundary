@@ -42,7 +42,7 @@ after it. In a continuous recording every break must share one offset. With
 `--align recording` the start of the recording is fixed only where at least two fully
 matched breaks agree on it (the ledger records `start_confirmed_by`), and each break is
 then checked only within `--offset-tol` of where it must be. Recordings with no such
-agreement fall back to `--align break`. Tested on the sample, not on the whole delivery.
+agreement fall back to `--align break`. Used in the October full run (v17).
 
 **Schedule cleaning** (`--clean-schedule`, `--own-channel`, off by default; 12–13 Oct 2026).
 `--clean-schedule` repairs how the metadata groups records into breaks before alignment:
@@ -66,8 +66,9 @@ Each start is therefore pushed forward to the first scene change within the foll
 **one second**. A wider window starts catching cuts inside the advert itself. This is the
 default, and the setting of the September 2026 run.
 
-Three options added on 13 Oct 2026 change where Stage B looks. All are off by default and
-have been tested only on the sample of 151 recordings and on 19 frame-checked cut points:
+Three options added on 13 Oct 2026 change where Stage B looks. All are off by default;
+they were tested on the sample of 151 recordings and on 19 frame-checked cut points, then
+used in the October full run (v17):
 
 - `--refine-from silence` searches the whole silence instead of only forward from its
   midpoint, because in 8 of 19 frame-checked cut points the first frame of the new advert
@@ -120,6 +121,11 @@ true first frame usually lies, and results come out worse than no refinement at 
 ## Measured results
 
 ### Across the delivered corpus (September 2026 run)
+
+The October full run (v17) supersedes these figures: 94.5% of clips within 0.2 s of their
+stated length, last clips aside, and 81.6–84.7% in every year
+([results_2026-10.md](results_2026-10.md#latest-full-run-v17)). The September figures
+below are kept because Chapter 4 reports them.
 
 All 1,670 delivered source recordings, run 20 September 2026 with the settings listed under
 [Settings used for each run](#settings-used-for-each-run): **25,208 cut points**. The main
@@ -308,6 +314,7 @@ was skipped each time and is excluded from the audit with `--exclude`.
 | `s_prec` | sample | as `s_own_rec2`, with Stage B on | [results_2026-10.md](results_2026-10.md#stage-b-search-the-silence-and-allow-for-the-video-start) |
 | `s_v2` | sample | as `s_prec`, plus `--refine-from silence --refine-mute-frames 6` | the same |
 | `s_v3` | sample | as `s_v2`, plus `--correct-video-start` | the same |
+| October full run (v17) | 1,669 recordings (one 32-hour file skipped) | as `s_v3` | [results_2026-10.md](results_2026-10.md#latest-full-run-v17) |
 
 `s_own`, `s_own_rec2` and `s_prec` ran before the schedule-cleaning rules were revised on
 13 Oct 2026 (only Sky AdSmart treated as a placeholder; breaks split at any gap over two
@@ -326,8 +333,8 @@ python3 src/loss_audit.py precision --run runs/s_v3 --ref runs/s_v2 --src $SRC \
     --out runs/precision_s_v3 --exclude "<the skipped recording>"
 ```
 
-The October options have not yet been run on the whole delivery. The next full run will
-use the `s_v3` settings, with a rule for the last clip of a break still to be chosen.
+The October full run (v17) used the `s_v3` settings on every recording. The rule for the
+last clip of a break is unchanged and remains the open problem.
 
 ## Design notes worth keeping
 
@@ -353,11 +360,9 @@ because the delivered files carry more than one video stream plus data streams.
 - **Absolute accuracy rests on 23 frame-by-frame checks so far** (19 of them used to test
   the October Stage B options). Corpus-wide figures are consistency with stated lengths,
   not position.
-- **The last clip of a break is the least reliable clip.** 16% of last clips in the
-  September run are more than five seconds short; no replacement rule has been tested.
-- **The October options are tested on a sample only.** `--align recording`,
-  `--clean-schedule`, `--own-channel`, `--refine-from silence`, `--refine-mute-frames` and
-  `--correct-video-start` have been run on 151 recordings, not on the whole delivery.
+- **The last clip of a break is the least reliable clip.** 14.4% of last clips in the
+  October run (16% in September) are more than five seconds short; no replacement rule has
+  been tested.
 - **Breaks of three or four boundaries are weak.** Under the strict rule they still match
   in full at a wrong position about one time in eight (17 of 140 trials), against under 3%
   for breaks of five or more.

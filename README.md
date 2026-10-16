@@ -16,17 +16,17 @@ describe the content of each extracted advert.
 That separation is the point. Corpus construction is deterministic and reproducible;
 interpretation is where the model enters.
 
-**Results so far.** The September 2026 run over all 1,670 delivered recordings produced
-25,208 cut points. Each clip is compared with the length stated in its own advert
-identifier (24,872 clips have one): median difference **0.042 s (about one frame)**,
-**74%** within 0.2 s, **83%** leaving aside the last clip of each break. These figures
-measure consistency with scheduled durations, not the position of a cut point.
+**Results.** The latest full run (15 October 2026) processed 1,669 recordings and
+produced 30,632 cut points. Each clip is compared with the length stated in its own advert
+identifier: **94.5%** are within 0.2 s, leaving aside the last clip of each break (83.2% of
+all clips), and every year from 2020 to 2026 falls between 81.6% and 84.7%. 75.1% of the
+unique adverts in the metadata were obtained at least once. The first full run, in
+September and reported in Chapter 4 of the thesis, gave 83.0% and 73.9%.
 
-Changes made in October 2026 have been tested on a sample of 151 recordings and not yet
-run on the whole delivery. On the sample they raise the share of clips within 0.2 s of
-their own length, last clips aside, from 82.4% to 94.5%. All of them are off by default.
-Figures, their basis and their status are in [docs/results_2026-10.md](docs/results_2026-10.md);
-the method and the settings used for each run are in [docs/method.md](docs/method.md).
+Project pages: <https://sh-skylar-liu.github.io/advert-silence-boundary/>. Figures, and how
+each change moved them, are in [docs/results_2026-10.md](docs/results_2026-10.md); the
+method and the settings used for each run are in [docs/method.md](docs/method.md). The
+October options are off by default, so older commands keep their meaning.
 
 ## How it works
 

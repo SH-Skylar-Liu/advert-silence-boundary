@@ -1,25 +1,85 @@
 # Results — October 2026
 
-Current figures for the segmentation pipeline, each with its basis and status. The figures
-match Chapter 4 of the thesis as submitted on 14 October 2026 (§4.6, Table 4.6). Method and
-run settings are in [method.md](method.md#settings-used-for-each-run); the
-August–September log is kept in [results_2026-09.md](results_2026-09.md).
+Current figures for the segmentation pipeline. The latest full run (v17, 15 October 2026)
+applies every October change to all recordings; the sections after it record how the
+pipeline got there from the first full run (v16, September 2026), which is the run
+reported in Chapter 4 of the thesis (14 October 2026). Method and run settings are in
+[method.md](method.md#settings-used-for-each-run); the August–September log is kept in
+[results_2026-09.md](results_2026-09.md).
 
-Two kinds of figure appear below. **Full-run** figures come from the September 2026 run
-over all 1,670 delivered recordings and its audit of 10 October. **Sample** figures come
-from every eleventh recording of the delivery (151 recordings), used to test the October
-changes before a full run. Every length figure is about consistency with scheduled
-durations, not about whether a cut point is in the right place.
+Each clip is compared with the length stated in its own identifier. "Sample" means every
+eleventh recording of the delivery (151 recordings), used to test each change before the
+full run.
 
 ## Summary
 
-| Result | Basis | Status | What it supports | What it does not support |
-|---|---|---|---|---|
-| Median difference of 0.042 s from the length in the clip's own identifier; 74% within 0.2 s, 83% leaving aside the last clip of each break | Full run, 1,670 recordings, 24,872 clips with a stated length | Stable for this run | The clips kept match their scheduled durations | That each cut point is in the right place |
-| 12,409 of 19,503 unique adverts obtained (63.6%) | Audit of 10 October | Baseline; both counts to be made again | About two thirds had been obtained under the counting then in use | A final rate of coverage |
-| New alignment ordering: 2,368 to 2,877 cut points | Sample of 151 recordings | Tested; not run on the whole delivery | More breaks can be kept without loosening the strict rule | The size of the gain on the whole delivery |
-| Wider Stage B search with the video start allowed for: 8 to 16 of 19 on the first frame; 82.4% to 94.5% of clips within 0.2 s of their own length, last clips aside | 19 cut points checked by hand; sample of 151 recordings | Tested; not run on the whole delivery | Better placement in material of every year | The size of the gain on the whole delivery; the position of cut points beyond the 19 |
-| 16% of last clips cut more than 5 s short | Full run, 2,899 last clips | Open; no replacement rule tested | The present rule for the last clip has to change | How well a replacement rule will do |
+| Result | v16, September | v17, October |
+|---|---|---|
+| Recordings processed | 1,670 | 1,669 (one 32-hour file skipped) |
+| Cut points | 25,208 | 30,632 |
+| Clips within 0.2 s of stated length, all | 73.9% | **83.2%** |
+| Clips within 0.2 s, last clip of each break aside | 83.0% | **94.5%** |
+| Last clips aside: more than 1 s / 5 s off | 2.6% / 0.3% | 1.7% / 0.1% |
+| 2025 / 2026 within 0.2 s | 60.3% / 58.8% | **83.0% / 83.1%** |
+| Ledger rows with a wrong label | 7,929 | 0 |
+| Unique adverts obtained | 12,409 of 19,503 (63.6%) | **14,189 of 18,890 (75.1%)** |
+| Last clips more than 5 s short | 16.0% | 14.4% (rule unchanged) |
+
+The two coverage figures use different denominators: v17 counts the metadata after repair
+(placeholders removed, breaks of a second channel set aside), so 18,890 unique adverts
+rather than 19,503. On the old denominator v17 would be 72.8%.
+
+---
+
+## Latest full run (v17)
+
+Run of 15 October 2026 with the `s_v3` settings ([method.md](method.md#settings-used-for-each-run))
+on every recording except one of 32 hours, which the new alignment takes hours to process.
+No recording failed.
+
+| Group | clips | median | ≤0.2 s | >1 s | >5 s |
+|---|---|---|---|---|---|
+| All | 30,630 | 0.000 s | 83.2% | 4.2% | 1.9% |
+| Not the last clip of a break | 26,813 | 0.000 s | 94.5% | 1.7% | 0.1% |
+| Last clip of a break | 3,817 | 0.391 s | 4.2% | 22.0% | 14.4% |
+| First clip of a break | 3,814 | 0.000 s | 85.2% | 7.3% | 0.2% |
+| Break of 3–4 boundaries | 1,614 | 0.000 s | 63.7% | 11.8% | 7.2% |
+| Break of 5 or more | 29,016 | 0.000 s | 84.3% | 3.8% | 1.6% |
+| Recording start confirmed by two breaks | 27,097 | 0.000 s | 83.9% | 3.8% | 1.5% |
+| Recording start not confirmed | 3,533 | 0.000 s | 78.2% | 7.7% | 4.8% |
+| Cut points new in v17 | 6,319 | 0.000 s | 77.7% | 6.2% | 2.6% |
+| 2020 | 2,503 | 0.000 s | 83.1% | 4.4% | 2.4% |
+| 2021 | 5,034 | 0.000 s | 81.6% | 4.8% | 2.5% |
+| 2022 | 4,043 | 0.000 s | 82.1% | 4.2% | 1.8% |
+| 2023 | 4,224 | 0.000 s | 84.7% | 3.8% | 1.6% |
+| 2024 | 5,871 | 0.000 s | 84.7% | 3.8% | 1.3% |
+| 2025 | 5,731 | 0.000 s | 83.0% | 4.5% | 2.0% |
+| 2026 | 3,224 | 0.000 s | 83.1% | 4.2% | 2.2% |
+
+- A median of 0.000 s means that more than half of the clips have exactly their stated
+  length: both ends fall on a picture change, and picture changes sit on the frame grid.
+- 94% of cut points were moved by the picture stage (49% in v16); the guardrail reverted
+  none, because the search now stops at the end of the silence.
+- Every year falls between 81.6% and 84.7%.
+
+**Coverage.** 115 recordings were delivered under two or three file names, each with a
+different part of the metadata; slots are therefore counted once per recording.
+
+| Step | slots | breaks |
+|---|---|---|
+| Real advert slots in the repaired metadata | 54,515 | 6,896 |
+| of which in breaks not in the recording | 9,826 | 1,282 |
+| inside the recording | 44,689 | 5,614 |
+| **kept** | **28,632 (64.1% of those inside)** | **3,566** |
+
+64.1% is a lower bound: breaks outside the recording can only be identified where the
+recording start was fixed (994 of 1,669 recordings). Of the 18,890 unique adverts,
+14,189 were obtained (75.1%); of the 4,701 not obtained, 3,103 appear only once in the
+delivery.
+
+Where breaks were lost (counted file by file): 1,990 because a boundary found no silence
+(545 of them missing a single boundary), 1,423 outside the recording, 171 placed
+inconsistently with the recording start.
 
 ---
 

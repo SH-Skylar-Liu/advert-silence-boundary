@@ -1,6 +1,13 @@
 # Changelog
 
-**1.8 — 10–15 Oct 2026**
+**1.8 — 10–17 Oct 2026**
+
+- Full run v17 (15 Oct) with every October option: 94.5% of clips within 0.2 s of their
+  stated length, last clips aside (83.0% in September); 75.1% of unique adverts obtained.
+- `dedup_recon.py`: coverage counted once per recording where one recording was delivered
+  under several file names.
+- Docs: landing page for GitHub Pages (`docs/index.html`); results, explainer and notebook
+  updated to v17.
 
 Every new option is off by default, so earlier commands reproduce earlier runs. All of
 them are tested on a sample of 151 recordings only. Figures in

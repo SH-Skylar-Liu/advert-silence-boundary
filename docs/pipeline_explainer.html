@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Advert Boundary Pipeline</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400&display=swap">
 <style>
@@ -155,10 +157,10 @@
     <h1>Cutting single adverts out of broadcast recordings</h1>
     <p class="lede">The audio says roughly where an advert starts, the schedule decides whether to believe it, the picture sharpens the frame. No machine learning touches the boundaries.</p>
     <div class="stats">
-      <div class="stat"><b>1,670</b><span>recordings processed</span></div>
-      <div class="stat"><b>25,208</b><span>cut points</span></div>
-      <div class="stat"><b>0.042 s</b><span>median difference from stated length, about one frame</span></div>
-      <div class="stat"><b>74%</b><span>within 0.2 s of stated length; 83% last clips aside</span></div>
+      <div class="stat"><b>1,669</b><span>recordings processed</span></div>
+      <div class="stat"><b>28,632</b><span>adverts cut</span></div>
+      <div class="stat"><b>94.5%</b><span>within 0.2 s of stated length, last clip of each break aside</span></div>
+      <div class="stat"><b>75.1%</b><span>of unique adverts obtained</span></div>
     </div>
     <div class="signals">
       <span class="sig"><i class="dot a"></i> audio signal</span>
@@ -315,13 +317,13 @@
           <div class="mbar"><span>2026</span><span class="mtrack"><i class="mfill" style="width:100%"></i></span><span class="mval">100%</span></div>
         </div>
         <div>
-          <span class="label">within 0.2 s of stated length, sample, before → after correction</span>
-          <div class="mbar"><span>2025</span><span class="mtrack"><i class="mfill" style="width:86%"></i></span><span class="mval">63→86%</span></div>
-          <div class="mbar"><span>2026</span><span class="mtrack"><i class="mfill" style="width:79%"></i></span><span class="mval">51→79%</span></div>
+          <span class="label">within 0.2 s of stated length, full run, September → October</span>
+          <div class="mbar"><span>2025</span><span class="mtrack"><i class="mfill" style="width:83%"></i></span><span class="mval">60→83%</span></div>
+          <div class="mbar"><span>2026</span><span class="mtrack"><i class="mfill" style="width:83%"></i></span><span class="mval">59→83%</span></div>
         </div>
       </div>
     </div>
-    <p class="cap"><b>Tested on a sample, not yet on the whole delivery.</b> Allowing for the late video start, and searching the whole silence for the first frame, brought recent years level with earlier ones on a sample of 151 recordings; on 19 cut points checked by hand, 16 now fall exactly on the first frame and the other three are one frame away. Details in <a href="results_2026-10.html">Results, October 2026</a>.</p>
+    <p class="cap"><b>Fixed in the October full run.</b> Allowing for the late video start, and searching the whole silence for the first frame, brought every year to between 81.6% and 84.7% of clips within 0.2 s; on 19 cut points checked by hand, 16 now fall exactly on the first frame and the other three are one frame away. Details in <a href="results_2026-10.html">Current results</a>.</p>
   </section>
 
   <section>
@@ -338,7 +340,7 @@
   </section>
 
   <footer>
-    Headline and year figures from the full delivered corpus, September 2026 run; the variant comparison from the 12-recording development sample. Each clip is measured against the length stated in its own identifier, so the figures express consistency with scheduled durations rather than the position of a cut point — which rests on frame-by-frame checks on a sample. The last clip of each break is ended by a rule of its own with a known fault and is the least reliable clip. Updated 16 October 2026 to match Chapter 4 of the thesis.
+    Headline figures from the October 2026 full run; the year chart from the September run, before the fix; the variant comparison from the 12-recording development sample. Each clip is measured against the length stated in its own identifier, so the figures express consistency with scheduled durations rather than the position of a cut point — which rests on frame-by-frame checks on a sample. The last clip of each break is ended by a rule of its own with a known fault and is the least reliable clip. Updated 17 October 2026.
   </footer>
 </div>
 

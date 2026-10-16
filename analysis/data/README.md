@@ -11,12 +11,13 @@ replaced by the CSVs that `loss_audit.py` writes when the runs are next exported
 
 | File | Run | Command that printed it |
 |---|---|---|
-| `own_length_by_group.csv` | September full run (`v16`); sample runs `s_prec`, `s_v2`, `s_v3` | `loss_audit.py precision` (own-length table) |
+| `own_length_by_group.csv` | full runs `v16` (September) and `v17` (October); sample runs `s_prec`, `s_v2`, `s_v3` | `loss_audit.py precision` (own-length table) |
 | `chance_test.csv` | sample run `s_fill` | `loss_audit.py fillcheck` (CHANCE table) |
 | `yield_by_rule.csv` | sample run `s_fill` | `loss_audit.py misses` (percentage columns dropped: their denominator is the whole delivery) |
 | `alignment_runs.csv` | sample runs `s_own`, `s_own_rec2` | `loss_audit.py recon` / `diff` (summary figures only; screen output not kept) |
 | `refine_check_19.csv` | 19 frame-checked cut points | `refine_check.py` (summary lines) |
 | `video_start_by_year.csv` | all 1,670 recordings | `ffprobe` per file, summed by year |
 | `coverage.csv` | audit of 10 Oct 2026 over the September run | `loss_audit.py recon` |
+| `coverage_v17.csv` | October full run, each recording counted once | `loss_audit.py recon`, `dedup_recon.py` |
 
 Run settings are in [../../docs/method.md](../../docs/method.md#settings-used-for-each-run).
