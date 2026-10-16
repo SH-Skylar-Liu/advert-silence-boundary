@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Advert Segmentation</title>
+<meta name="description" content="How single adverts are cut out of UK broadcast recordings from the BFI National Archive: the material, the method, what came out, what is lost, and what is still open.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&display=swap">
+<style>
+  :root {
+    --paper: #f5f6f3; --surface: #ffffff; --surface-2: #eceee8;
+    --ink: #14212b; --ink-soft: #55636d; --ink-faint: #7b8790;
+    --line: #d7dbd3; --line-strong: #b9c0b6;
+    --audio: #1d6fb8; --audio-soft: #d3e2f0;
+    --picture: #a8327d; --picture-soft: #f2d9e9;
+    --sched: #6b7f3f; --sched-soft: #e2e9cf;
+    --good: #2e7d5b; --good-soft: #d6eadf;
+    --warn: #c08a2e; --warn-soft: #f3e6cc;
+    --bad: #b4432e; --bad-soft: #f3dad3;
+    --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    --serif: "Source Serif 4", Georgia, serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0f1519; --surface: #161e24; --surface-2: #1d272e;
+      --ink: #e8ede9; --ink-soft: #9aa8ae; --ink-faint: #75838a; --line: #2a353d; --line-strong: #3d4a53;
+      --audio: #63a8e0; --audio-soft: #1b3b52; --picture: #dd7cba; --picture-soft: #3f1f35;
+      --sched: #a9c169; --sched-soft: #2b3520;
+      --good: #63b28c; --good-soft: #1c3a2c; --warn: #d9ab5c; --warn-soft: #3b2f1a; --bad: #d87a63; --bad-soft: #3d2420;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0f1519; --surface: #161e24; --surface-2: #1d272e;
+    --ink: #e8ede9; --ink-soft: #9aa8ae; --ink-faint: #75838a; --line: #2a353d; --line-strong: #3d4a53;
+    --audio: #63a8e0; --audio-soft: #1b3b52; --picture: #dd7cba; --picture-soft: #3f1f35;
+    --sched: #a9c169; --sched-soft: #2b3520;
+    --good: #63b28c; --good-soft: #1c3a2c; --warn: #d9ab5c; --warn-soft: #3b2f1a; --bad: #d87a63; --bad-soft: #3d2420;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15.5px; line-height: 1.55; }
+  a { color: var(--audio); text-underline-offset: 2px; }
+  .wrap { max-width: 68rem; margin: 0 auto; padding-inline: 20px; }
+  .label { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-soft); }
+  .mono, code { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  code { font-size: 0.86em; background: var(--surface-2); padding: 1px 4px; border-radius: 2px; }
+  p { margin: 0 0 12px; max-width: 44rem; }
+  .cap { font-size: 0.84rem; color: var(--ink-soft); margin: 10px 0 0; max-width: 46rem; }
+  .cap b { color: var(--ink); font-weight: 600; }
+
+  /* header */
+  header.top { padding-block: 40px 28px; }
+  .topline { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .theme { margin-left: auto; font: 500 0.75rem var(--sans); padding: 5px 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--ink-soft); cursor: pointer; border-radius: 2px; }
+  .theme:focus-visible { outline: 2px solid var(--audio); outline-offset: 2px; }
+  h1 { font-size: clamp(1.9rem, 4.6vw, 2.8rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.08; margin: 14px 0 12px; max-width: 46rem; text-wrap: balance; }
+  .lede { font-family: var(--serif); font-size: 1.12rem; line-height: 1.5; color: var(--ink-soft); max-width: 44rem; margin: 0; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 26px; }
+  .stat { background: var(--surface); padding: 12px 14px; }
+  .stat b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.45rem; font-weight: 500; display: block; line-height: 1.15; }
+  .stat span { font-size: 0.76rem; color: var(--ink-soft); }
+  .notice { margin-top: 16px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .note { border-left: 3px solid var(--warn); background: var(--surface); padding: 10px 14px; font-size: 0.85rem; color: var(--ink-soft); }
+  .note b { color: var(--ink); }
+  .note.src { border-left-color: var(--audio); }
+
+  /* rail */
+  .rail { position: sticky; top: 0; z-index: 5; background: var(--paper); background: color-mix(in srgb, var(--paper) 90%, transparent); backdrop-filter: blur(6px); border-block: 1px solid var(--line); }
+  .rail ol { list-style: none; margin: 0 auto; padding: 0 20px; max-width: 68rem; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: thin; }
+  .rail a { display: flex; gap: 7px; align-items: baseline; padding: 11px 10px; text-decoration: none; color: var(--ink-soft); font-size: 0.85rem; white-space: nowrap; border-bottom: 2px solid transparent; }
+  .rail a .mono { color: var(--ink-faint); font-size: 0.75rem; }
+  .rail a.on { color: var(--ink); border-bottom-color: var(--ink); }
+  .rail a:focus-visible { outline: 2px solid var(--audio); outline-offset: -2px; }
+
+  /* sections */
+  section { padding-block: 44px 8px; }
+  .sechead { margin-bottom: 16px; }
+  .sechead .label { display: block; margin-bottom: 6px; }
+  h2 { font-size: clamp(1.25rem, 2.6vw, 1.55rem); font-weight: 600; letter-spacing: -0.012em; line-height: 1.2; margin: 0; max-width: 46rem; text-wrap: balance; }
+  h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 6px; }
+  .panel { border: 1px solid var(--line); background: var(--surface); }
+  .pad { padding: 18px 18px; }
+  .grid2 { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .grid3 { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .scroller { overflow-x: auto; }
+
+  /* hierarchy */
+  .levels { display: grid; gap: 0; }
+  .lvl { display: grid; grid-template-columns: 8.5rem 1fr 7rem; gap: 14px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+  .lvl:first-child { border-top: 0; }
+  .lvl .name { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+  .lvl .what { font-size: 0.86rem; }
+  .lvl .n { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; font-size: 0.95rem; }
+  .lvl .n small { display: block; font-size: 0.68rem; color: var(--ink-soft); font-family: var(--sans); }
+  .lvl.ours .name { color: var(--picture); }
+
+  /* schedule table */
+  table { border-collapse: collapse; width: 100%; font-size: 0.84rem; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.ph td { color: var(--ink-faint); }
+  tr.ph td.id { text-decoration: line-through; text-decoration-color: var(--bad); }
+
+  /* steps */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0; border: 1px solid var(--line); background: var(--surface); }
+  .step { padding: 14px 16px; border-left: 1px solid var(--line); }
+  .step:first-child { border-left: 0; }
+  .step .tag { font-size: 0.66rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .step p { font-size: 0.83rem; color: var(--ink-soft); margin: 0; }
+  .tag.a { color: var(--audio); } .tag.p { color: var(--picture); } .tag.s { color: var(--sched); }
+  @media (max-width: 640px) { .step { border-left: 0; border-top: 1px solid var(--line); } .step:first-child { border-top: 0; } }
+
+  /* bar charts */
+  .chart { display: grid; gap: 2px; }
+  .crow { display: grid; grid-template-columns: 4.6rem 1fr 4.2rem; gap: 12px; align-items: center; padding: 3px 0; font-size: 0.8rem; }
+  .crow .k { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+  .crow .v { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+  .ctrack { position: relative; height: 22px; background: var(--surface-2); }
+  .cbar { position: absolute; left: 0; height: 9px; border-radius: 0 3px 3px 0; min-width: 2px; }
+  .cbar.s1 { top: 2px; background: var(--line-strong); }
+  .cbar.s2 { top: 11px; background: var(--good); }
+  .cbar.one { top: 5px; height: 12px; background: var(--audio); }
+  .cbar.one.hot { background: var(--bad); }
+  .ref { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--ink-faint); }
+  .crow:hover .ctrack, .crow:focus-within .ctrack { outline: 1px solid var(--line-strong); }
+  .ckey { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 12px; font-size: 0.76rem; color: var(--ink-soft); }
+  .ckey i { display: inline-block; width: 14px; height: 9px; margin-right: 6px; vertical-align: middle; border-radius: 0 2px 2px 0; }
+  .tip { position: fixed; pointer-events: none; z-index: 20; background: var(--ink); color: var(--paper); font-size: 0.75rem; padding: 6px 9px; border-radius: 3px; max-width: 16rem; opacity: 0; transition: opacity 120ms; }
+  .tip.on { opacity: 1; }
+
+  /* coverage strip */
+  .strip { display: flex; height: 34px; gap: 2px; margin: 10px 0 8px; }
+  .strip div { display: flex; align-items: center; padding-inline: 8px; font-size: 0.75rem; font-family: var(--mono); overflow: hidden; white-space: nowrap; }
+  .strip .got { background: var(--good-soft); color: var(--ink); border-left: 3px solid var(--good); }
+  .strip .miss1 { background: var(--bad-soft); color: var(--ink); border-left: 3px solid var(--bad); }
+  .strip .miss2 { background: var(--warn-soft); color: var(--ink); border-left: 3px solid var(--warn); }
+  .loss { counter-reset: loss; display: grid; gap: 12px; margin-top: 18px; }
+  .loss > div { position: relative; padding-left: 34px; }
+  .loss > div::before { counter-increment: loss; content: counter(loss); position: absolute; left: 0; top: 0; width: 22px; height: 22px; border: 1px solid var(--line-strong); border-radius: 50%; font: 500 0.75rem var(--mono); display: grid; place-items: center; color: var(--ink-soft); }
+  .loss p { font-size: 0.86rem; color: var(--ink-soft); margin: 0; }
+
+  /* status board */
+  .board { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .col { border: 1px solid var(--line); background: var(--surface); border-top: 3px solid var(--good); }
+  .col.tested { border-top-color: var(--warn); }
+  .col.open { border-top-color: var(--bad); }
+  .col header { padding: 12px 14px 8px; }
+  .col header p { font-size: 0.78rem; color: var(--ink-soft); margin: 2px 0 0; }
+  .item { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 0.84rem; }
+  .item b { font-family: var(--mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .item small { display: block; color: var(--ink-soft); font-size: 0.75rem; margin-top: 2px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .chip.g { color: var(--good); } .chip.w { color: var(--warn); } .chip.b { color: var(--bad); }
+
+  /* cards */
+  .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .card { display: block; border: 1px solid var(--line); background: var(--surface); padding: 16px; text-decoration: none; color: var(--ink); transition: border-color 120ms; }
+  .card:hover, .card:focus-visible { border-color: var(--ink); outline: none; }
+  .card .label { display: block; margin-bottom: 6px; }
+  .card h3 { font-size: 1rem; margin-bottom: 4px; }
+  .card p { font-size: 0.82rem; color: var(--ink-soft); margin: 0; }
+  .card .go { display: block; margin-top: 10px; font-size: 0.78rem; color: var(--audio); }
+
+  footer { margin-top: 56px; padding-block: 18px 48px; border-top: 1px solid var(--line); font-size: 0.8rem; color: var(--ink-soft); }
+  footer p { max-width: 50rem; }
+  @media (max-width: 560px) {
+    .lvl { grid-template-columns: 1fr 5.5rem; }
+    .lvl .what { grid-column: 1 / -1; grid-row: 2; }
+    .crow { grid-template-columns: 3rem 1fr 3.6rem; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top wrap">
+  <div class="topline">
+    <span class="label">Corpus construction · UK television advertising · BFI National Archive</span>
+    <button class="theme" id="theme" type="button" aria-label="Switch colour theme">Theme: auto</button>
+  </div>
+  <h1>Cutting each advert out of the broadcast it aired in decides what the corpus contains</h1>
+  <p class="lede">The BFI delivered continuous recordings of UK television with industry metadata, but nothing in a file says where an advert begins. This page reports how single adverts are cut out of those recordings, what the first full run produced, what is lost, and what is still open. It accompanies Chapter 4 of the thesis.</p>
+
+  <div class="stats">
+    <div class="stat"><b>1,670</b><span>recordings in the first delivery</span></div>
+    <div class="stat"><b>97,213</b><span>advert records in their metadata</span></div>
+    <div class="stat"><b>25,208</b><span>cut points in the September 2026 full run</span></div>
+    <div class="stat"><b>63.6%</b><span>of 19,503 unique adverts obtained at least once</span></div>
+  </div>
+
+  <div class="notice">
+    <div class="note"><b>Length is not position.</b> Most figures compare each clip with the length its identifier states. A cut that is late at both ends passes that test. Position is checked frame by frame, on 23 cut points so far.</div>
+    <div class="note src"><b>Where the figures come from.</b> The full-run figures and the sample tests are recomputed in the <a href="ch04_results.html">Chapter 4 results notebook</a> from summary tables. No archive recording, metadata row or frame is published here.</div>
+  </div>
+</header>
+
+<nav class="rail" aria-label="Sections">
+  <ol>
+    <li><a href="#material"><span class="mono">1</span>Material</a></li>
+    <li><a href="#rules"><span class="mono">2</span>What counts</a></li>
+    <li><a href="#method"><span class="mono">3</span>How a cut is made</a></li>
+    <li><a href="#checks"><span class="mono">4</span>How it is checked</a></li>
+    <li><a href="#results"><span class="mono">5</span>What came out</a></li>
+    <li><a href="#loss"><span class="mono">6</span>What is lost</a></li>
+    <li><a href="#october"><span class="mono">7</span>October changes</a></li>
+    <li><a href="#status"><span class="mono">8</span>Stable / tested / open</a></li>
+    <li><a href="#pages"><span class="mono">9</span>Pages &amp; code</a></li>
+  </ol>
+</nav>
+
+<main class="wrap">
+
+  <!-- 1 -->
+  <section id="material">
+    <div class="sechead"><span class="label">1 · The material</span><h2>The recordings are continuous, and the metadata keeps a different clock</h2></div>
+    <div class="grid2">
+      <div class="panel pad">
+        <div class="levels">
+          <div class="lvl"><span class="name">Delivery</span><span class="what">The first BFI delivery, chosen by a script so that every advert identifier appears at least once</span><span class="n">1</span></div>
+          <div class="lvl"><span class="name">Recording</span><span class="what">A continuous broadcast, tens of minutes to three hours, programmes and breaks in turn</span><span class="n">1,670</span></div>
+          <div class="lvl"><span class="name">Break</span><span class="what">Listed in the metadata with clock times, never with a position in the file</span><span class="n">11,254</span></div>
+          <div class="lvl"><span class="name">Record</span><span class="what">One row per advert broadcast: time, place in break, brand, identifier</span><span class="n">97,213</span></div>
+          <div class="lvl ours"><span class="name">Clip</span><span class="what">One advert cut out of the recording, with one row in the processing log. This is the study's work.</span><span class="n">25,208<small>cut points, Sept run</small></span></div>
+        </div>
+      </div>
+      <div>
+        <p>The metadata gives clock times, such as 20:46:20, while a file counts from zero, and nothing records when a recording began. The time in a file's name is the start of one break, not the start of the recording. The two clocks have to be matched before the metadata can be used at all, and even then its times are given to the second, while a cut point has to be placed to the frame (25 a second).</p>
+        <p>The identifier states a length. Its last three digits are the advert's length in seconds: where an advert is followed by another in its break, the next one starts exactly that many seconds later in <b>99.6%</b> of 62,001 cases. This is read from the data, not from documentation, and it is what lets every clip be checked against a length known in advance.</p>
+        <p class="cap"><b>Selection matters.</b> The recordings were chosen to cover every identifier, not at random, so the broadcast an advert is cut from is not a typical one. Channel and time of day are therefore always taken from the full broadcast history in the metadata, never from the clip.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section id="rules">
+    <div class="sechead"><span class="label">2 · Inclusion rules</span><h2>The metadata does not settle what counts as one advert, so the pipeline has to</h2></div>
+    <div class="grid2">
+      <div class="panel scroller">
+        <table>
+          <thead><tr><th>Time</th><th>Place</th><th>Identifier</th><th class="num">Gap</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">13:54:02</td><td>First</td><td class="mono">…859020</td><td class="num">20 s</td></tr>
+            <tr><td class="mono">13:54:22</td><td>2nd</td><td class="mono">…001030</td><td class="num">30 s</td></tr>
+            <tr class="ph"><td class="mono">13:54:22</td><td>2nd</td><td class="mono id">C4ADDRESSABLE</td><td class="num">—</td></tr>
+            <tr class="ph"><td class="mono">13:54:52</td><td>3rd</td><td class="mono id">C4ADDRESSABLE</td><td class="num">—</td></tr>
+            <tr><td class="mono">13:54:52</td><td>3rd</td><td class="mono">…470010</td><td class="num">10 s</td></tr>
+            <tr class="ph"><td class="mono">13:55:02</td><td>Middle</td><td class="mono id">C4ADDRESSABLE</td><td class="num">—</td></tr>
+            <tr><td class="mono">13:55:02</td><td>Tissues</td><td class="mono">…041030</td><td class="num">30 s</td></tr>
+          </tbody>
+        </table>
+        <p class="cap" style="padding: 0 10px 12px">Opening of one break (Channel 4, 29 April 2024), identifiers shortened. Struck-through rows are placeholders; one "place" is a product category. The gap equals the last three digits of the identifier.</p>
+      </div>
+      <div class="grid3" style="grid-template-columns: 1fr">
+        <div class="panel pad"><h3>Each identifier is one advert</h3><p class="cap" style="margin:0">Ten- and thirty-second versions under the same brand carry different identifiers, and are counted as different adverts.</p></div>
+        <div class="panel pad"><h3>Placeholder rows are removed, not cut</h3><p class="cap" style="margin:0">Addressable advertising is sold per household. Three placeholder identifiers mark these slots in 25,975 of the 97,213 records (about 27%). All but three share a start time with a real advert, which keeps the boundary.</p></div>
+        <div class="panel pad"><h3>What the metadata omits is not in the corpus</h3><p class="cap" style="margin:0">A sponsor's advert shown just before a break has no record, so it is not cut.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="method">
+    <div class="sechead"><span class="label">3 · The procedure</span><h2>Sound finds the join, the schedule decides whether to believe it, the picture sets the frame</h2></div>
+    <div class="steps">
+      <div class="step"><span class="tag a">audio</span><h3>List the silences</h3><p>Adverts are delivered with six frames of silence at each end, so two in a row are separated by about half a second of silence (median 0.645 s between adverts).</p></div>
+      <div class="step"><span class="tag s">schedule</span><h3>Match the fingerprint</h3><p>The gaps between a break's adverts, say 20, 30, 10 and 20 s, are slid along the recording until every boundary falls on a silence.</p></div>
+      <div class="step"><span class="tag s">schedule</span><h3>Keep or drop the break</h3><p>A break is kept only if every boundary matches and its offset agrees with the break kept before it. One miss drops the whole break.</p></div>
+      <div class="step"><span class="tag p">picture</span><h3>Place the cut</h3><p>From the silence midpoint, the cut moves to the first abrupt picture change. A guardrail reverts it if it lands more than two frames after sound returns.</p></div>
+    </div>
+    <p class="cap"><b>No model touches the boundaries.</b> Segmentation is deterministic signal processing; a vision-language model enters only afterwards, to describe finished clips. The full walkthrough, with one break worked through under three rule sets, is in the <a href="pipeline_explainer.html">pipeline explainer</a>. Settings for each run are in <a href="method.html#settings-used-for-each-run">Method and settings</a>.</p>
+  </section>
+
+  <!-- 4 -->
+  <section id="checks">
+    <div class="sechead"><span class="label">4 · Validation</span><h2>Three kinds of evidence, each blind where another can see</h2></div>
+    <div class="grid3">
+      <div class="panel pad" style="border-top: 3px solid var(--sched)"><span class="label">every cut · automatic</span><h3 style="margin-top:6px">Stated length</h3><p class="cap" style="margin:0">Clip length against the length in its own identifier. Tests the distance between neighbouring cuts.</p><p class="cap" style="color: var(--bad)">Blind to a shift shared by every cut.</p></div>
+      <div class="panel pad" style="border-top: 3px solid var(--audio)"><span class="label">every cut · automatic</span><h3 style="margin-top:6px">Return of sound</h3><p class="cap" style="margin:0">Where the cut sits against the end of the silence. Across the full run the median cut falls 277 ms before sound returns.</p><p class="cap" style="color: var(--bad)">Cannot tell a late cut from sound that starts late.</p></div>
+      <div class="panel pad" style="border-top: 3px solid var(--ink)"><span class="label">sample · by hand</span><h3 style="margin-top:6px">Frame by frame</h3><p class="cap" style="margin:0">The only check that fixes the position of a cut, and the brand label. 23 cut points so far.</p><p class="cap" style="color: var(--bad)">Too few to report an accuracy figure.</p></div>
+    </div>
+    <p class="cap"><b>One case needed all three.</b> Two clips came out at 19.3 s and 20.7 s where both should have been 20 s; the audio showed one cut 371 ms after sound had returned; stepping through the frames showed the refinement had pushed the cut 17 frames into the next advert. The guardrail was written in response.</p>
+  </section>
+
+  <!-- 5 -->
+  <section id="results">
+    <div class="sechead"><span class="label">5 · The September 2026 full run</span><h2>Most clips match their stated length to about a frame, except the last clip of each break</h2></div>
+    <div class="grid2">
+      <div class="panel pad">
+        <span class="label">clips within 0.2 s of stated length, by place in the break</span>
+        <div class="chart" style="margin-top:12px" data-chart>
+          <div class="crow" tabindex="0" data-tip="Every clip with a stated length: 24,872 clips, median difference 0.042 s"><span class="k">All</span><span class="ctrack"><i class="cbar one" style="width:73.9%"></i></span><span class="v">73.9%</span></div>
+          <div class="crow" tabindex="0" data-tip="Within a break, not the first or last clip: 22,309 clips, median 0.040 s"><span class="k">Inside</span><span class="ctrack"><i class="cbar one" style="width:74.6%"></i></span><span class="v">74.6%</span></div>
+          <div class="crow" tabindex="0" data-tip="First clip of a break: 2,563 clips, median 0.079 s"><span class="k">First</span><span class="ctrack"><i class="cbar one" style="width:67.9%"></i></span><span class="v">67.9%</span></div>
+          <div class="crow" tabindex="0" data-tip="Last clip of a break: 2,899 clips, median 0.403 s; 16.0% more than 5 s off"><span class="k">Last</span><span class="ctrack"><i class="cbar one hot" style="width:5.5%"></i></span><span class="v">5.5%</span></div>
+          <div class="crow" tabindex="0" data-tip="All but the last clip of each break: 21,973 clips, median 0.031 s; 0.3% more than 5 s off"><span class="k">Not last</span><span class="ctrack"><i class="cbar one" style="width:83%"></i></span><span class="v">83.0%</span></div>
+        </div>
+        <p class="cap">The last advert of a break has no next advert to end it. It ends at the first silence at least 8 s after it starts, and a pause inside the advert can be taken for that silence: <b>16% of last clips are more than five seconds short</b>.</p>
+      </div>
+      <div class="panel pad">
+        <span class="label">clips within 0.2 s of stated length, by year</span>
+        <div class="chart" style="margin-top:12px" data-chart>
+          <div class="crow" tabindex="0" data-tip="2020: 1,979 clips, median 0.042 s"><span class="k">2020</span><span class="ctrack"><i class="cbar one" style="width:78.1%"></i></span><span class="v">78.1%</span></div>
+          <div class="crow" tabindex="0" data-tip="2021: 4,059 clips, median 0.058 s"><span class="k">2021</span><span class="ctrack"><i class="cbar one" style="width:76.6%"></i></span><span class="v">76.6%</span></div>
+          <div class="crow" tabindex="0" data-tip="2022: 3,147 clips, median 0.023 s"><span class="k">2022</span><span class="ctrack"><i class="cbar one" style="width:80.2%"></i></span><span class="v">80.2%</span></div>
+          <div class="crow" tabindex="0" data-tip="2023: 3,512 clips, median 0.002 s"><span class="k">2023</span><span class="ctrack"><i class="cbar one" style="width:82.4%"></i></span><span class="v">82.4%</span></div>
+          <div class="crow" tabindex="0" data-tip="2024: 4,651 clips, median 0.000 s"><span class="k">2024</span><span class="ctrack"><i class="cbar one" style="width:82%"></i></span><span class="v">82.0%</span></div>
+          <div class="crow" tabindex="0" data-tip="2025: 4,839 clips, median 0.130 s; see section 7"><span class="k">2025</span><span class="ctrack"><i class="cbar one hot" style="width:60.3%"></i></span><span class="v">60.3%</span></div>
+          <div class="crow" tabindex="0" data-tip="2026: 2,685 clips, median 0.140 s; see section 7"><span class="k">2026</span><span class="ctrack"><i class="cbar one hot" style="width:58.8%"></i></span><span class="v">58.8%</span></div>
+        </div>
+        <p class="cap">The 2025–2026 drop was first read as a change in the adverts. It was a timing mismatch in the files (section 7).</p>
+      </div>
+    </div>
+    <p class="cap">The median is reported and the mean is not: 57 clips (0.2%) run longer than two minutes, some genuinely (the metadata lists 120 s and 180 s adverts), the rest not yet diagnosed.</p>
+  </section>
+
+  <!-- 6 -->
+  <section id="loss">
+    <div class="sechead"><span class="label">6 · Coverage</span><h2>About two thirds of the unique adverts were obtained, and the losses may not fall evenly</h2></div>
+    <div class="panel pad">
+      <span class="label">19,503 unique adverts in the first delivery · audit of 10 October 2026</span>
+      <div class="strip" role="img" aria-label="12,409 obtained, 3,994 missing that appear only once, 3,100 other missing">
+        <div class="got" style="flex: 12409">12,409 obtained</div>
+        <div class="miss1" style="flex: 3994">3,994 missing, aired once</div>
+        <div class="miss2" style="flex: 3100">3,100 other missing</div>
+      </div>
+      <p class="cap" style="margin-top:0">For the 3,994 adverts that appear only once in the delivery, a lost slot is a lost advert. The counts are a baseline: both were made when only one of the three placeholder types was recognised, and will be made again.</p>
+      <div class="loss">
+        <div><h3>The slot was never in the file</h3><p>The metadata lists breaks that are not in the recording, and for 327 files (19.6%) it mixes in the breaks of a second channel.</p></div>
+        <div><h3>The metadata groups its records wrongly</h3><p>Breaks split in two at the same second (1,758 and 958 breaks), and two breaks written as one with a gap of minutes inside (200). These are now repaired before alignment.</p></div>
+        <div><h3>The strict rule drops whole breaks</h3><p>One missed boundary removes a break of eight or nine adverts, and the offset check removes most breaks placed in the wrong position.</p></div>
+      </div>
+    </div>
+    <p class="cap"><b>Why it matters for the analysis.</b> A loss that fell evenly would only make the corpus smaller; a loss that falls unevenly changes its shape. The next full run will report retention by year, advert length and channel before any distribution is compared.</p>
+  </section>
+
+  <!-- 7 -->
+  <section id="october">
+    <div class="sechead"><span class="label">7 · Tested on a sample, not yet on the whole delivery</span><h2>Two October changes keep more breaks and fix the recent years, without loosening the rule</h2></div>
+    <div class="grid2">
+      <div class="panel pad">
+        <h3>Why not simply accept breaks with a boundary missing?</h3>
+        <p class="cap" style="margin-top:0">Each break of the sample was fitted again five and seven minutes away, inside the programme. A full match there is an accident.</p>
+        <div class="chart" style="margin-top:10px" data-chart>
+          <div class="crow" tabindex="0" data-tip="Strict rule: 33 of 1,376 displaced fits passed"><span class="k">All</span><span class="ctrack"><i class="cbar one" style="width:12.6%"></i></span><span class="v">2.4%</span></div>
+          <div class="crow" tabindex="0" data-tip="At most one boundary missing: 52 of 1,376"><span class="k">−1</span><span class="ctrack"><i class="cbar one" style="width:20%"></i></span><span class="v">3.8%</span></div>
+          <div class="crow" tabindex="0" data-tip="At most two missing: 95 of 1,376"><span class="k">−2</span><span class="ctrack"><i class="cbar one" style="width:36.3%"></i></span><span class="v">6.9%</span></div>
+          <div class="crow" tabindex="0" data-tip="At most three missing: 154 of 1,376"><span class="k">−3</span><span class="ctrack"><i class="cbar one" style="width:58.9%"></i></span><span class="v">11.2%</span></div>
+          <div class="crow" tabindex="0" data-tip="Half the boundaries matched: 220 of 1,376; gains only 112 slots on the sample"><span class="k">Half</span><span class="ctrack"><i class="cbar one hot" style="width:84.2%"></i></span><span class="v">16.0%</span></div>
+        </div>
+        <p class="cap">Breaks matched by accident, by acceptance rule (scale to 19%). The looser rule gains 112 slots and lets in seven times as many accidents, so <b>the strict rule stays</b>. Small breaks of 3–4 boundaries still match by accident about one time in eight.</p>
+      </div>
+      <div class="panel pad">
+        <h3>1 · Align the recording, not each break</h3>
+        <p class="cap" style="margin-top:0">Checking each break against the one kept before it lets a single misplaced break bring down every correct break after it. Fixing the recording's start where two breaks agree, then checking each break only where it must be:</p>
+        <div class="stats" style="margin-top:10px">
+          <div class="stat"><b>2,368 → 2,877</b><span>cut points kept on the sample, about a fifth more</span></div>
+          <div class="stat"><b>52</b><span>cut points lost; some were wrong before</span></div>
+        </div>
+        <h3 style="margin-top:20px">2 · Look in the right place, at the right frames</h3>
+        <p class="cap" style="margin-top:0">The first frame often sits before the silence midpoint, so the search now covers the silence, starting six frames in. And in 81% of 2025 and all 2026 recordings the video stream starts up to 2.8 s after the audio, so the picture detector had been looking about a second late.</p>
+      </div>
+    </div>
+    <div class="panel pad" style="margin-top:14px">
+      <span class="label">clips within 0.2 s of stated length, same 151 recordings, before and after</span>
+      <div class="ckey" style="margin-top:10px"><span><i style="background: var(--line-strong)"></i>before the October changes</span><span><i style="background: var(--good)"></i>with both changes</span></div>
+      <div class="chart" data-chart>
+        <div class="crow" tabindex="0" data-tip="2020: 76.9% → 83.6%"><span class="k">2020</span><span class="ctrack"><i class="cbar s1" style="width:76.9%"></i><i class="cbar s2" style="width:83.6%"></i></span><span class="v">83.6%</span></div>
+        <div class="crow" tabindex="0" data-tip="2021: 76.3% → 82.4%"><span class="k">2021</span><span class="ctrack"><i class="cbar s1" style="width:76.3%"></i><i class="cbar s2" style="width:82.4%"></i></span><span class="v">82.4%</span></div>
+        <div class="crow" tabindex="0" data-tip="2022: 81.2% → 83.0%"><span class="k">2022</span><span class="ctrack"><i class="cbar s1" style="width:81.2%"></i><i class="cbar s2" style="width:83%"></i></span><span class="v">83.0%</span></div>
+        <div class="crow" tabindex="0" data-tip="2023: 79.7% → 82.6%"><span class="k">2023</span><span class="ctrack"><i class="cbar s1" style="width:79.7%"></i><i class="cbar s2" style="width:82.6%"></i></span><span class="v">82.6%</span></div>
+        <div class="crow" tabindex="0" data-tip="2024: 80.8% → 85.3%"><span class="k">2024</span><span class="ctrack"><i class="cbar s1" style="width:80.8%"></i><i class="cbar s2" style="width:85.3%"></i></span><span class="v">85.3%</span></div>
+        <div class="crow" tabindex="0" data-tip="2025: 62.9% → 86.2%"><span class="k">2025</span><span class="ctrack"><i class="cbar s1" style="width:62.9%"></i><i class="cbar s2" style="width:86.2%"></i></span><span class="v">86.2%</span></div>
+        <div class="crow" tabindex="0" data-tip="2026: 50.8% → 79.2%"><span class="k">2026</span><span class="ctrack"><i class="cbar s1" style="width:50.8%"></i><i class="cbar s2" style="width:79.2%"></i></span><span class="v">79.2%</span></div>
+      </div>
+      <p class="cap">All clips, including the last clip of each break. Last clips aside, the share rises from <b>82.4% to 94.5%</b>. On 19 cut points checked by hand, those exactly on the first frame rose from 8 to 16, and none is more than one frame out. This is still evidence about length on the sample, and about position on those 19 only.</p>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section id="status">
+    <div class="sechead"><span class="label">8 · Status of each result (Chapter 4, Table 4.6)</span><h2>What can be relied on now, what has only been tried, and what is open</h2></div>
+    <div class="board">
+      <div class="col">
+        <header><span class="chip g">Stable for this run</span><p>Full run, September 2026</p></header>
+        <div class="item"><b>0.042 s</b> median difference from stated length; <b>74%</b> within 0.2 s, <b>83%</b> last clips aside<small>Supports: the clips kept match their scheduled durations. Not: that each cut point is in the right place.</small></div>
+        <div class="item"><b>12,409 / 19,503</b> unique adverts obtained (63.6%)<small>A baseline under the counting then in use, not a final coverage rate.</small></div>
+      </div>
+      <div class="col tested">
+        <header><span class="chip w">Tested on the sample</span><p>151 recordings; not run on the whole delivery</p></header>
+        <div class="item"><b>2,368 → 2,877</b> cut points with alignment by recording<small>Supports: more breaks can be kept without loosening the strict rule. Not: the size of the gain on the whole delivery.</small></div>
+        <div class="item"><b>82.4% → 94.5%</b> within 0.2 s, last clips aside; <b>8 → 16</b> of 19 on the first frame<small>Supports: better placement in material of every year. Not: position beyond the 19.</small></div>
+      </div>
+      <div class="col open">
+        <header><span class="chip b">Open</span><p>Known fault, no replacement tested</p></header>
+        <div class="item"><b>16%</b> of 2,899 last clips cut more than 5 s short<small>The present rule for the last clip has to change. Using the length in the identifier is the obvious candidate; it has not been tested.</small></div>
+        <div class="item"><b>12%</b> accidental full matches for breaks of 3–4 boundaries<small>Reported separately; no extra rule adopted.</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section id="pages">
+    <div class="sechead"><span class="label">9 · Pages and code</span><h2>Every figure on this page can be traced to a script and a run</h2></div>
+    <div class="cards">
+      <a class="card" href="pipeline_explainer.html"><span class="label">walkthrough</span><h3>Pipeline explainer</h3><p>One break worked through under three rule sets; the three kinds of evidence; one row per cut.</p><span class="go">Open →</span></a>
+      <a class="card" href="ch04_results.html"><span class="label">notebook</span><h3>Chapter 4 results</h3><p>Table 4.6 recomputed from summary tables, with each figure checked against the chapter.</p><span class="go">Open →</span></a>
+      <a class="card" href="results_2026-10.html"><span class="label">figures</span><h3>Results, October 2026</h3><p>Every current figure with its basis and status, including the tables behind this page.</p><span class="go">Open →</span></a>
+      <a class="card" href="method.html"><span class="label">method</span><h3>Method and settings</h3><p>How each step works, the exact options of each run, and the known limitations.</p><span class="go">Open →</span></a>
+      <a class="card" href="https://github.com/SH-Skylar-Liu/advert-silence-boundary"><span class="label">code</span><h3>Repository</h3><p>The scripts, the README with commands to reproduce a run, and the version history.</p><span class="go">GitHub →</span></a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <p>Developed by Shihan Liu, PhD research at King's College London in collaboration with the BFI National Archive. The recordings and their metadata belong to the BFI National Archive and are not published; this page shows summary figures only. Advert content is not reproduced.</p>
+  <p>Figures as in Chapter 4 of the thesis (draft of 14 October 2026). Last updated 16 October 2026.</p>
+</footer>
+
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+  (function () {
+    var root = document.documentElement, btn = document.getElementById("theme"), order = ["auto", "light", "dark"], cur = "auto";
+    try { cur = localStorage.getItem("seg-theme") || "auto"; } catch (e) {}
+    function apply() { if (cur === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", cur); btn.textContent = "Theme: " + cur; }
+    btn.addEventListener("click", function () { cur = order[(order.indexOf(cur) + 1) % 3]; try { localStorage.setItem("seg-theme", cur); } catch (e) {} apply(); });
+    apply();
+
+    var tip = document.getElementById("tip");
+    function show(el, x, y) { tip.textContent = el.dataset.tip; tip.classList.add("on");
+      var w = tip.offsetWidth; tip.style.left = Math.min(x + 12, window.innerWidth - w - 8) + "px"; tip.style.top = (y + 14) + "px"; }
+    function hide() { tip.classList.remove("on"); }
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tip]"), function (el) {
+      el.addEventListener("mousemove", function (e) { show(el, e.clientX, e.clientY); });
+      el.addEventListener("mouseleave", hide);
+      el.addEventListener("focus", function () { var r = el.getBoundingClientRect(); show(el, r.left + r.width / 2, r.bottom - 4); });
+      el.addEventListener("blur", hide);
+    });
+
+    var links = Array.prototype.slice.call(document.querySelectorAll(".rail a"));
+    var sections = Array.prototype.slice.call(document.querySelectorAll("main section")), current = null, ticking = false;
+    function mark() {
+      ticking = false;
+      var id = null;
+      sections.forEach(function (s) { if (s.getBoundingClientRect().top < 140) id = s.id; });
+      if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) id = sections[sections.length - 1].id;
+      if (id === current) return;
+      current = id;
+      links.forEach(function (a) { a.classList.toggle("on", a.getAttribute("href") === "#" + id); });
+      var on = document.querySelector(".rail a.on");
+      if (on) { var ol = on.parentNode.parentNode; ol.scrollLeft = on.offsetLeft - ol.clientWidth / 2 + on.offsetWidth / 2; }
+    }
+    window.addEventListener("scroll", function () { if (!ticking) { ticking = true; requestAnimationFrame(mark); } }, { passive: true });
+    mark();
+  })();
+</script>
+</body>
+</html>
