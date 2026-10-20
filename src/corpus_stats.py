@@ -34,6 +34,29 @@ from collections import Counter, defaultdict
 
 PLACEHOLDER_KINDS = ("SKYADSMART", "C4ADDRESSABLE", "ITVADDRESSABLE")
 JSON_KEYS = Counter()          # advert-level keys seen in the metadata JSON / JSON 里出现过的字段
+VIDEO_KEYS = Counter()         # keys of video_info / video_info 里出现过的字段
+
+# Channel labels as delivered -> one name per channel. HD simulcasts are merged with
+# their channel. Labels not listed are kept as they are; section 1 prints the mapping.
+# 交付时的频道写法 -> 统一名称（HD 同播并入本频道）；未列出的原样保留，第 1 节会打出对照表。
+CHANNEL_CANON = {"5": "Channel 5", "CHANNEL5": "Channel 5", "CH5": "Channel 5",
+                 "CH4": "Channel 4", "CHANNEL4": "Channel 4", "C4": "Channel 4",
+                 "ITV1HD": "ITV1", "ITV": "ITV1", "5STAR": "5STAR", "E4": "E4", "MORE4": "More4", "FILM4": "Film4"}
+FAMILY = {"Channel 4": "Channel 4 group", "More4": "Channel 4 group", "E4": "Channel 4 group", "Film4": "Channel 4 group",
+          "Channel 5": "Channel 5 group", "5STAR": "Channel 5 group"}
+
+
+def canon_channel(label: str) -> str:
+    key = str(label or "").upper().replace(" ", "")
+    return CHANNEL_CANON.get(key, str(label or "").strip())
+
+
+def family_of(channel: str) -> str:
+    if channel.upper().startswith("ITV"):
+        return "ITV group"
+    if channel.upper().startswith("SKY"):
+        return "Sky group"
+    return FAMILY.get(channel, "other")
 
 # BFI export column -> internal field / BFI 导出 CSV 的列名 -> 内部字段名
 CSV_FIELDS = {
@@ -85,6 +108,9 @@ def to_float(v):
 
 def finish(r: dict) -> dict:
     """Derived fields shared by both sources / 两种来源共用的派生字段。"""
+    r["channel_raw"] = r["channel"]
+    r["channel"] = canon_channel(r["channel"])
+    r["family"] = family_of(r["channel"])
     r["year"] = r["date"][:4]
     s = secs(r["time"])
     r["t"] = s
@@ -140,9 +166,13 @@ def load_json(src: str) -> tuple:
     for fp in sorted(glob.glob(os.path.join(os.path.expanduser(src), "*_metadata.json"))):
         d = json.load(open(fp, encoding="utf-8"))
         vi = d.get("video_info", {})
+        VIDEO_KEYS.update(vi.keys())
         name = os.path.basename(fp)[: -len("_metadata.json")]
-        recordings.append({"name": name, "channel": vi.get("channel", ""), "date": vi.get("date", ""),
-                           "year": str(vi.get("date", ""))[:4], "hours": (vi.get("duration_seconds") or 0) / 3600})
+        vdate = iso_date(str(vi.get("date", "")))             # delivered as 28/11/2020 / 交付格式为 日/月/年
+        secs_ = next((to_float(vi[k]) for k in ("duration_seconds", "duration_s", "duration", "length_seconds", "length")
+                      if k in vi and to_float(vi[k]) is not None), None)
+        recordings.append({"name": name, "channel": canon_channel(vi.get("channel", "")), "date": vdate,
+                           "year": vdate[:4], "hours": (secs_ or 0) / 3600})
         for br in d.get("ad_breaks", []):
             for ad in br.get("adverts", []):
                 JSON_KEYS.update(ad.keys())
@@ -150,8 +180,11 @@ def load_json(src: str) -> tuple:
                 extra = {"major": next((str(v) for k, v in ad.items() if "major" in k.lower()), ""),
                          "mid": next((str(v) for k, v in ad.items() if "mid" in k.lower()), ""),
                          "impacts": {k: to_float(v) for k, v in ad.items() if "impact" in k.lower() and to_float(v) is not None}}
+                # the break's own channel beats the recording's: about a fifth of the files
+                # carry breaks of a second channel (Ch04 4.6) / 优先用广告段自己的频道
+                bch = (br.get("programme_before") or {}).get("channel") or vi.get("channel", "")
                 recs.append(finish({**extra,
-                    "channel": vi.get("channel", ""), "date": vi.get("date", ""),
+                    "channel": bch, "date": vdate,
                     "time": ad.get("start_time", ""), "code": ad.get("unique_id", ""),
                     "advertiser": ad.get("advertiser", ""), "brand": ad.get("brand", ""),
                     "minor": ad.get("category", ""), "pib_rel": ad.get("position_in_break", ""),
@@ -384,13 +417,16 @@ def main() -> None:
         ("addressable placeholder airings", len(ph)), ("broadcast airings", len(ads)),
         ("unique adverts (identifiers)", len(uniq)),
         ("brands", len({r["brand"] for r in ads})), ("advertisers", len({r["advertiser"] for r in ads})),
-        ("channels", len(chans)), ("log stations", len({r.get("station") for r in ads if r.get("station")})),
+        ("channels (after merging label variants)", len(chans)),
+        ("channel labels as delivered", len({r["channel_raw"] for r in ads})), ("log stations", len({r.get("station") for r in ads if r.get("station")})),
         ("first date", min(r["date"] for r in recs)), ("last date", max(r["date"] for r in recs)),
         ("days with any airing", len({r["date"] for r in recs})),
     ]
     if recordings:
         ov += [("recordings (metadata JSON)", len(recordings)),
                ("hours recorded", round(sum(x["hours"] for x in recordings), 1))]
+    if VIDEO_KEYS:
+        ov.append(("fields in video_info", ", ".join(f"{k} ({v:,})" for k, v in VIDEO_KEYS.most_common())))
     if JSON_KEYS:
         ov.append(("fields in metadata JSON adverts", ", ".join(f"{k} ({v:,})" for k, v in JSON_KEYS.most_common())))
     miss = [(f, f"{sum(1 for r in ads if not r.get(f)) / max(1, len(ads)):.1%}")
@@ -407,11 +443,19 @@ def main() -> None:
     by_ch = Counter(r["channel"] for r in ads)
     uq_ch = {c: len(s) for c, s in uniq_by(ads, "channel").items()}
     st = Counter((r["channel"], r.get("station", "")) for r in raw if not r["kind"] and r.get("station"))
+    lab = Counter((r["channel_raw"], r["channel"], r["family"]) for r in ads)
+    fam = Counter(r["family"] for r in ads)
     rep.section("1 · Channels / 频道分布",
                 "Daniel: how many channels, and are they UK-wide or England only? The log stations show which regional feed each export row comes from.",
                 hbar(top(by_ch, N)),
                 rep.table("channels", ["channel", "airings", "unique_adverts", "placeholder_airings"],
                           [(c, by_ch[c], uq_ch[c], sum(1 for r in ph if r["channel"] == c)) for c in chans]),
+                "<h3>Broadcaster groups / 按广播公司归组</h3>", hbar(top(fam, 10)),
+                "<h3>Channel labels as delivered / 交付时的频道写法与归并</h3>",
+                "<p class=note>Each airing takes the channel of its own break (programme_before.channel) where the metadata gives one, "
+                "and the recording's channel otherwise. Label variants are merged as listed; check the merge before quoting a channel count.</p>",
+                rep.table("channel_labels", ["label_as_delivered", "channel", "group", "airings"],
+                          [(a_, c, g, v) for (a_, c, g), v in lab.most_common()]),
                 "<h3>Log stations / 地区台（判断全英还是仅英格兰）</h3>" if st else "",
                 hbar(sorted(((f"{c} · {s}", v) for (c, s), v in st.items()), key=lambda x: -x[1])[:40]) if st else "",
                 rep.table("stations", ["channel", "log_station", "rows"], [(c, s, v) for (c, s), v in st.most_common()]) if st else "")
@@ -437,6 +481,16 @@ def main() -> None:
                    rep.table("recordings_channel_year", ["channel", "year", "recordings", "hours"],
                              [(c, y, sum(1 for x in recordings if (x["channel"], x["year"]) == (c, y)), round(rh_[(c, y)], 1))
                               for c in rch for y in ryr])]
+    # which days were delivered: month-end only? / 交付的是哪些日子
+    dates = sorted({r["date"] for r in recs})
+    dom = Counter(int(d[8:10]) for d in dates if len(d) == 10 and d[8:10].isdigit())
+    ym = Counter(d[:7] for d in dates)
+    blocks += ["<h3>Days delivered, by day of the month / 交付日期落在每月第几天</h3>",
+               columns([(str(k), dom[k]) for k in range(1, 32)]),
+               f"<p class=note>{len(dates):,} distinct dates. If they bunch at the end of the month, the corpus is a sample of days, "
+               "and seasonal claims (Christmas, summer) depend on which days were picked.</p>",
+               rep.table("dates_delivered", ["date", "airings"], sorted(Counter(r["date"] for r in recs).items())),
+               rep.table("months_delivered", ["year_month", "dates"], sorted(ym.items()))]
     rep.section("2 · Years covered / 年份覆盖", "Daniel: which years do you have access to now, and how much of each? (2016–2020 still on tape.)", *blocks)
 
     # ---- 3. addressable placeholders / 可寻址广告占位行 ----

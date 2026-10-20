@@ -30,7 +30,7 @@ import shutil
 import subprocess
 from collections import defaultdict
 
-from corpus_stats import load_records, placeholder_kind, read_rows
+from corpus_stats import canon_channel, load_records, placeholder_kind, read_rows
 
 CODING_COLUMNS = ["who_appears", "setting", "tone_or_address", "implied_audience", "notes"]
 
@@ -41,7 +41,7 @@ def recording_info(name: str) -> tuple:
     m = re.match(r"(\d{4}-\d{2}-\d{2})_(.+?)_(\d{2})[:_](\d{2})[:_](\d{2})", os.path.basename(name))
     if not m:
         return "", "", None
-    return m.group(1), m.group(2), int(m.group(3)) * 3600 + int(m.group(4)) * 60 + int(m.group(5))
+    return m.group(1), canon_channel(m.group(2)), int(m.group(3)) * 3600 + int(m.group(4)) * 60 + int(m.group(5))
 
 
 def find_video(src: str, recording: str) -> str:

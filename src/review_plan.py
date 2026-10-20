@@ -8,10 +8,10 @@
 A flag means "worth a look", not "wrong" (ISSA's wording). Every rule is computed from
 the ledger columns and the metadata JSON only; nothing is decoded.
 
-Ordering: recordings are picked one at a time. A recording scores 1 for each rule it
-triggers that has been seen fewer than three times in the recordings already picked,
-and 0.1 for a rule already seen three times, plus a small bonus for high-priority
-rules. So the reviewer meets every kind of problem early, instead of the same one
+Ordering: recordings are picked one at a time. A recording scores 1 (plus a small bonus
+for high-priority rules) for each rule it triggers that has been seen fewer than three
+times in the recordings already picked, almost nothing for a rule already seen three
+times, and 0.5 if its channel and year have not been visited yet. So the reviewer meets every kind of problem early, instead of the same one
 twenty times.
 
 Writes OUT/rule_counts.csv, OUT/flags.csv (one row per flag), OUT/review_order.csv
@@ -23,10 +23,11 @@ import csv
 import glob
 import json
 import os
+import re
 import shlex
 from collections import Counter, defaultdict
 
-from corpus_stats import id_duration, placeholder_kind, read_rows
+from corpus_stats import canon_channel, id_duration, placeholder_kind, read_rows
 
 # rule -> (priority, level, meaning) / 规则 -> （优先级、层级、含义）
 RULES = {
@@ -39,7 +40,7 @@ RULES = {
     "length_off_small":   ("medium", "clip",      "clip length differs from the stated length by 0.2-1 s (not the last clip)"),
     "gap_in_break":       ("medium", "clip",      "more than 1 s between the end of one clip and the start of the next in a break: unlogged content?"),
     "reverted":           ("medium", "clip",      "Stage B cut point fell past the end of the silence and was reverted"),
-    "large_shift":        ("medium", "clip",      "Stage B moved the cut point by more than 600 ms"),
+    "large_shift":        ("medium", "clip",      "Stage B moved the cut point by more than 600 ms (not the first clip of a break, where a long silence makes such moves normal)"),
     "schedule_filled":    ("medium", "clip",      "start filled from the schedule, no silence found there"),
     "unconfirmed_start":  ("low",    "break",     "break placed on its own fit; no other break confirms the recording start"),
     "no_stated_length":   ("low",    "clip",      "identifier does not end in three digits, so the clip cannot be checked against a length"),
@@ -112,7 +113,8 @@ def main() -> None:
                 if r.get("refine_status", "").startswith("reverted"):
                     flag(rec, "reverted", br, clip, at)
                 shift = f(r, "shift_ms")
-                if shift is not None and abs(shift) > 600:
+                # at a break start the silence is long and a correct move can reach 800 ms (Ch04 4.4.3)
+                if shift is not None and abs(shift) > 600 and r.get("pos") != "1":
                     flag(rec, "large_shift", br, clip, at, f"{shift:.0f} ms")
                 if r.get("start_source") == "schedule":
                     flag(rec, "schedule_filled", br, clip, at)
@@ -155,14 +157,22 @@ def main() -> None:
             w.writerow([rec, rule, RULES[rule][0], br, clip, at, det])
 
     # ---- viewing order: new problem types first / 看片顺序：新问题类型优先 ----
-    seen, order, left = Counter(), [], dict(rec_rule)
+    def cell(rec):                                 # (channel, year) from the recording name
+        m = re.match(r"(\d{4})-\d{2}-\d{2}_(.+?)_\d{2}[:_]\d{2}[:_]\d{2}", rec)
+        return (canon_channel(m.group(2)), m.group(1)) if m else ("", "")
+
+    seen, cells, order, left = Counter(), set(), [], dict(rec_rule)
     while left and len(order) < a.budget:
         def score(rec):
-            return sum((1.0 if seen[r] < 3 else 0.1) + PRI_BONUS[RULES[r][0]] for r in left[rec])
+            # unseen rule types count fully, a rule met three times barely counts, and a
+            # channel-year not yet visited adds 0.5 / 新规则类型优先，其次新的频道×年份
+            return (sum((1.0 + PRI_BONUS[RULES[r][0]]) if seen[r] < 3 else 0.02 for r in left[rec])
+                    + (0.5 if cell(rec) not in cells else 0))
         best = max(sorted(left), key=score)
         order.append((best, score(best), sorted(left.pop(best), key=lambda r: list(RULES).index(r))))
         for r in order[-1][2]:
             seen[r] += 1
+        cells.add(cell(best))
     first_cut = {}
     for rec, rule, br, clip, at, det in flags:
         if at and (rec, rule) not in first_cut:
