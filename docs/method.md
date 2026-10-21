@@ -1,7 +1,8 @@
 # Method, results and design notes
 
-Detailed companion to the [README](../README.md). Version history is in
-[CHANGELOG.md](../CHANGELOG.md). Current figures, with the basis and status of each, are
+Detailed companion to the [README](https://github.com/SH-Skylar-Liu/advert-silence-boundary#readme).
+Version history is in [CHANGELOG.md](https://github.com/SH-Skylar-Liu/advert-silence-boundary/blob/main/CHANGELOG.md).
+Current figures, with the basis and status of each, are
 in [results_2026-10.md](results_2026-10.md); the August–September measurement log,
 including readings that turned out to be wrong, is kept in
 [results_2026-09.md](results_2026-09.md).
