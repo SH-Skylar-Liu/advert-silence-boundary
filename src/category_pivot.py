@@ -21,7 +21,36 @@ rows = list(csv.DictReader(open(SRC, encoding='utf-8-sig')))
 real = [r for r in rows if r['metadata_status'] != 'placeholder']
 print('rows:', len(rows), '| non-placeholder:', len(real))
 
-g = lambda r, c: (r.get(c) or '').strip()
+def g(r, c):
+    v = (r.get(c) or '').strip()
+    return '' if v == '#N/A' else v
+
+# Repair shifted rows. Some source major categories contain a comma
+# (e.g. "Electronics, household appliances & tech"); the CSV split them into two
+# fields, so every later source column moved right by one and the impacts value
+# fell off the end. Detected by a non-position value in position_in_break.
+POS_OK = {'First', '2nd', '3rd', 'Middle', '3rd last', '2nd last', 'Last'}
+SHIFTED = ['source_major_category', 'source_mid_category', 'source_minor_category',
+           'source_all_pib_rel', 'source_all_pib_pos', 'source_log_station',
+           'source_impacts_a4_plus']
+good_majors = {g(r, 'source_major_category') for r in real if g(r, 'position_in_break') in POS_OK}
+repaired, repaired_majors = 0, collections.Counter()
+for r in real:
+    if g(r, 'position_in_break') in POS_OK:
+        continue
+    v = [r.get(c) or '' for c in SHIFTED]
+    r['source_major_category'] = v[0].strip().lstrip('"') + ',' + v[1].rstrip().rstrip('"')
+    (r['source_mid_category'], r['source_minor_category'], r['source_all_pib_rel'],
+     r['source_all_pib_pos'], r['source_log_station']) = v[2:7]
+    r['source_impacts_a4_plus'] = ''
+    r['position_in_break'], r['position_number'] = v[4], v[5]
+    r['_repaired'] = '1'
+    repaired += 1
+    repaired_majors[g(r, 'source_major_category')] += 1
+still_bad = sum(g(r, 'position_in_break') not in POS_OK for r in real)
+print('shifted rows repaired:', repaired, '| still unparsed after repair:', still_bad)
+for m, n in repaired_majors.most_common(10):
+    print(f'  {n:4d} {m}  ({"new major" if m not in good_majors else "known major"})')
 
 def parse_date(s):
     for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y%m%d', '%d-%m-%Y'):
@@ -74,7 +103,6 @@ for r in real:
         'position_in_break': g(r, 'position_in_break'),
         'log_station': g(r, 'source_log_station'),
         'sales_house': g(r, 'source_sales_house'),
-        'advert_type': g(r, 'advert_type'),
         'programme': g(r, 'programme_before'),
         'agency': g(r, 'agency_clean') or g(r, 'source_agency'),
         'holding_company': g(r, 'holding_company_clean') or g(r, 'source_holding_company'),
@@ -95,12 +123,16 @@ for dim, n in TOP_N.items():
         if dims[dim] not in keep:
             dims[dim] = '(other)'
 
-# sanity checks
-fc_cats = collections.defaultdict(set)
+# one category triple per film code: the most frequent one, preferring any real
+# category over "Oldmedialog" (looks like a holding code for not-yet-coded creatives)
+fc_cats = collections.defaultdict(collections.Counter)
 for _, cat, fc, *_ in recs:
-    fc_cats[fc].add(cat)
-print('unique film codes:', len(fc_cats),
-      '| with >1 category triple:', sum(len(v) > 1 for v in fc_cats.values()))
+    fc_cats[fc][cat] += 1
+multi = sum(len(v) > 1 for v in fc_cats.values())
+canon = {fc: max(c, key=lambda t: (t[0] != 'Oldmedialog', c[t])) for fc, c in fc_cats.items()}
+recs = [(dims, canon[fc], fc, *rest) for dims, cat, fc, *rest in recs]
+print('unique film codes:', len(fc_cats), '| with >1 category triple (resolved):', multi,
+      '| Oldmedialog after resolving:', sum(t[0] == 'Oldmedialog' for t in canon.values()))
 print('unparsed date:', sum(not d['year'] for d, *_ in recs),
       '| unparsed hour:', sum(not d['hour'] for d, *_ in recs),
       '| no duration:', sum(not d['duration'] for d, *_ in recs),
