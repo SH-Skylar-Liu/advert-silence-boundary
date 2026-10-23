@@ -75,10 +75,14 @@ def split_pieces(p):
     """All ways to cut the pieces into (major, mid, minor), best match first."""
     out = []
     n = len(p)
+    # a stray closing quote marks the last piece of a name that contained a comma
+    closers = [i for i, s in enumerate(p) if s.rstrip().endswith('"')]
     for a in range(1, n - 1):
         for b in range(a + 1, n):
             t = (clean(','.join(p[:a])), clean(','.join(p[a:b])), clean(','.join(p[b:])))
-            score = 4 * (t[0] in known_maj) + 2 * (t[:2] in known_mid) + (t in known_tri)
+            starts = (0, a, b)
+            quote = sum(i + 1 in (a, b, n) and i not in starts for i in closers)
+            score = 8 * quote + 4 * (t[0] in known_maj) + 2 * (t[:2] in known_mid) + (t in known_tri)
             out.append((-score, -a, -(b - a), t))
     return [x[3] for x in sorted(out)]
 
