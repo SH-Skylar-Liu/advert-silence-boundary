@@ -157,10 +157,10 @@
     <h1>Cutting single adverts out of broadcast recordings</h1>
     <p class="lede">The audio says roughly where an advert starts, the schedule decides whether to believe it, the picture sharpens the frame. No machine learning touches the boundaries.</p>
     <div class="stats">
-      <div class="stat"><b>1,669</b><span>recordings processed</span></div>
-      <div class="stat"><b>28,632</b><span>adverts cut</span></div>
+      <div class="stat"><b>1,669</b><span>of 1,670 recordings processed</span></div>
+      <div class="stat"><b>30,632</b><span>planned clips, no video exported yet</span></div>
       <div class="stat"><b>94.5%</b><span>within 0.2 s of stated length, last clip of each break aside</span></div>
-      <div class="stat"><b>75.1%</b><span>of unique adverts obtained</span></div>
+      <div class="stat"><b>75.1%</b><span>of unique advertisements with at least one planned clip</span></div>
     </div>
     <div class="signals">
       <span class="sig"><i class="dot a"></i> audio signal</span>
@@ -336,11 +336,11 @@
       <div class="cell"><code>refine_backend · min_scene_len</code><span>the settings that produced it</span></div>
       <div class="cell"><code>start_source</code><span>matched silence, or filled from the schedule</span></div>
     </div>
-    <p class="cap">Raw and derived values sit side by side, so every comparison here is arithmetic over stored rows — no video decoded twice. The guard was simulated on existing ledgers before it was written, and the implementation then reproduced the simulation to the cut.</p>
+    <p class="cap">Raw and derived values sit side by side, so every comparison here is arithmetic over stored rows, and no video is decoded twice. The guard was simulated on existing ledgers before it was written, and the implementation then reproduced the simulation to the cut.</p>
   </section>
 
   <footer>
-    Headline figures from the October 2026 full run; the year chart from the September run, before the fix; the variant comparison from the 12-recording development sample. Each clip is measured against the length stated in its own identifier, so the figures express consistency with scheduled durations rather than the position of a cut point — which rests on frame-by-frame checks on a sample. The last clip of each break is ended by a rule of its own with a known fault and is the least reliable clip. Updated 17 October 2026.
+    Headline figures from the October 2026 full run; the year chart from the September run, before the fix; the variant comparison from the 12-recording development sample. Each clip is measured against the length stated in its own identifier, so the figures express consistency with scheduled durations and say nothing yet about the exact position of a cut point. That has been checked frame by frame on a sample only. The last clip of each break is ended by a rule of its own with a known fault and is the least reliable clip. Updated 17 October 2026.
   </footer>
 </div>
 
@@ -355,9 +355,9 @@
   ];
   var BREAK_END = 2830.32, TRUTH = 2810.30, GUARD_MS = 80;
   var MODES = {
-    a: { cap: "audio only", text: "Cuts sit at the midpoint of each silence — close, but each clip opens on a few frames of the advert before it." },
+    a: { cap: "audio only", text: "Cuts sit at the midpoint of each silence. That is close, but each clip opens on a few frames of the advert before it." },
     b: { cap: "audio + picture", text: "Three cuts snap onto their slot lengths. Lidl does not: its midpoint was already right, so the detector moved the cut 0.66 s into the advert, stretching Skechers to 20.68 s." },
-    c: { cap: "audio + picture + guard", text: "The Lidl refinement overshoots the return of sound, so it reverts — one frame from the first frame confirmed by eye. Every clip is now within 0.02 s of its slot." }
+    c: { cap: "audio + picture + guard", text: "The Lidl refinement overshoots the return of sound, so it reverts to one frame from the first frame confirmed by eye. Every clip is now within 0.02 s of its slot." }
   };
 
   var track = document.getElementById("track"), explain = document.getElementById("explain"),

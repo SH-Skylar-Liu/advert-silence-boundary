@@ -183,13 +183,13 @@
     <button class="theme" id="theme" type="button" aria-label="Switch colour theme">Theme: auto</button>
   </div>
   <h1>Advert segmentation pipeline</h1>
-  <p class="lede">The pipeline cuts single adverts out of continuous UK television recordings from the BFI National Archive, using the industry metadata as a guide. This page reports the latest full run (15 October 2026) and traces how the pipeline got there from the first full run in September. How the pipeline works is shown in the <a href="pipeline_explainer.html">pipeline explainer</a>.</p>
+  <p class="lede">The pipeline cuts single adverts out of continuous UK television recordings from the BFI National Archive, using the industry metadata as a guide. This page reports the latest full run (15 October 2026), which planned the clips without exporting any video yet, and traces how the pipeline got there from the first full run in September. How the pipeline works is shown in the <a href="pipeline_explainer.html">pipeline explainer</a>.</p>
 
   <div class="stats">
-    <div class="stat"><b>1,669</b><span>recordings processed, none failed</span></div>
-    <div class="stat"><b>28,632</b><span>adverts cut, each recording counted once</span></div>
+    <div class="stat"><b>1,669</b><span>of 1,670 recordings processed; one 32-hour file skipped</span></div>
+    <div class="stat"><b>30,632</b><span>planned clips, no video exported yet</span></div>
     <div class="stat"><b>94.5%</b><span>of clips within 0.2 s of their stated length (last clip of each break aside)</span></div>
-    <div class="stat"><b>75.1%</b><span>of 18,890 unique adverts obtained at least once</span></div>
+    <div class="stat"><b>75.1%</b><span>of 18,890 unique advertisements with at least one planned clip</span></div>
   </div>
 </header>
 
@@ -217,7 +217,7 @@
           <div class="lvl"><span class="name">Recording</span><span class="what">A continuous broadcast, tens of minutes to three hours, programmes and breaks in turn</span><span class="n">1,670</span></div>
           <div class="lvl"><span class="name">Break</span><span class="what">Listed in the metadata with clock times, never with a position in the file</span><span class="n">11,254</span></div>
           <div class="lvl"><span class="name">Record</span><span class="what">One row per advert broadcast: time, place in break, brand, identifier</span><span class="n">97,213</span></div>
-          <div class="lvl ours"><span class="name">Clip</span><span class="what">One advert cut out of the recording, with one row in the processing log</span><span class="n">28,632<small>adverts cut</small></span></div>
+          <div class="lvl ours"><span class="name">Clip</span><span class="what">One advert located in the recording and planned as a clip, with one row in the processing log</span><span class="n">30,632<small>planned clips</small></span></div>
         </div>
       </div>
       <div>
@@ -238,10 +238,10 @@
           <tbody>
             <tr><td class="mono">13:54:02</td><td>First</td><td class="mono">…859020</td><td class="num">20 s</td></tr>
             <tr><td class="mono">13:54:22</td><td>2nd</td><td class="mono">…001030</td><td class="num">30 s</td></tr>
-            <tr class="ph"><td class="mono">13:54:22</td><td>2nd</td><td class="mono id">C4ADDRESSABLE</td><td class="num">—</td></tr>
-            <tr class="ph"><td class="mono">13:54:52</td><td>3rd</td><td class="mono id">C4ADDRESSABLE</td><td class="num">—</td></tr>
+            <tr class="ph"><td class="mono">13:54:22</td><td>2nd</td><td class="mono id">C4ADDRESSABLE</td><td class="num">none</td></tr>
+            <tr class="ph"><td class="mono">13:54:52</td><td>3rd</td><td class="mono id">C4ADDRESSABLE</td><td class="num">none</td></tr>
             <tr><td class="mono">13:54:52</td><td>3rd</td><td class="mono">…470010</td><td class="num">10 s</td></tr>
-            <tr class="ph"><td class="mono">13:55:02</td><td>Middle</td><td class="mono id">C4ADDRESSABLE</td><td class="num">—</td></tr>
+            <tr class="ph"><td class="mono">13:55:02</td><td>Middle</td><td class="mono id">C4ADDRESSABLE</td><td class="num">none</td></tr>
             <tr><td class="mono">13:55:02</td><td>Tissues</td><td class="mono">…041030</td><td class="num">30 s</td></tr>
           </tbody>
         </table>
@@ -288,17 +288,17 @@
 
   <!-- 4 -->
   <section id="loss">
-    <div class="sechead"><span class="label">4 · Coverage</span><h2>Three quarters of the unique adverts were obtained</h2></div>
+    <div class="sechead"><span class="label">4 · Coverage</span><h2>Three quarters of the unique advertisements have a planned clip</h2></div>
     <div class="panel pad">
-      <span class="label">18,890 unique adverts in the metadata · latest full run</span>
-      <div class="strip" role="img" aria-label="14,189 obtained, 3,103 missing that appear only once, 1,598 other missing">
-        <div class="got" style="flex: 14189">14,189 obtained</div>
+      <span class="label">18,890 unique advertisements in the cleaned schedules · latest full run</span>
+      <div class="strip" role="img" aria-label="14,189 with a planned clip, 3,103 missing that appear only once, 1,598 other missing">
+        <div class="got" style="flex: 14189">14,189 with a planned clip</div>
         <div class="miss1" style="flex: 3103">3,103 missing, aired once</div>
         <div class="miss2" style="flex: 1598">1,598 other</div>
       </div>
       <p class="cap" style="margin-top:0">Two thirds of the adverts still missing appear only once in the delivery, so for them a lost slot is a lost advert.</p>
       <div class="loss">
-        <div><h3>The slot was never in the file</h3><p>The metadata lists breaks that are not in the recording: 9,826 of 54,515 slots. Of the 44,689 slots inside the recordings, 28,632 are kept (64.1%).</p></div>
+        <div><h3>The slot was never in the file</h3><p>The metadata lists breaks that are not in the recording: 9,826 of 54,515 slots. Of the 44,689 slots inside the recordings, 28,632 are kept (64.1%). Slots count a recording delivered under several file names once, so this is not the same count as the 30,632 planned clips.</p></div>
         <div><h3>A boundary found no silence</h3><p>The strict rule drops a break if any one boundary misses; 545 breaks were lost to a single missing boundary.</p></div>
         <div><h3>The break sat in the wrong place</h3><p>171 breaks did not agree with the start of the recording and were dropped.</p></div>
       </div>
@@ -313,11 +313,11 @@
       <table>
         <thead><tr><th>Step</th><th>Problem it solved</th><th class="num">Within 0.2 s, last clips aside</th><th class="num">Cut points</th></tr></thead>
         <tbody>
-          <tr><td><b>First full run</b><br><span class="cap">September 2026</span></td><td>2025–2026 recordings near 60%; 7,929 clips carrying the wrong label</td><td class="num">83.0%</td><td class="num">25,208</td></tr>
-          <tr><td><b>1 · Repair the metadata</b></td><td>Breaks split or merged wrongly; placeholder rows taking the place of real adverts; a second channel mixed into some files</td><td class="num">—</td><td class="num">wrong labels → 0</td></tr>
-          <tr><td><b>2 · Align the recording, not each break</b></td><td>One misplaced break brought down every correct break after it</td><td class="num">—</td><td class="num">about a fifth more</td></tr>
-          <tr><td><b>3 · Search the whole silence</b></td><td>The first frame often sits before the silence midpoint, where the search never looked; the search now starts six frames into the silence</td><td class="num">82.4% → 85.5%<br><span class="cap">sample</span></td><td class="num">—</td></tr>
-          <tr><td><b>4 · Allow for a late video start</b></td><td>In 81% of 2025 and all 2026 recordings the video stream starts up to 2.8 s after the audio, so the picture detector looked about a second late</td><td class="num">85.5% → 94.5%<br><span class="cap">sample</span></td><td class="num">—</td></tr>
+          <tr><td><b>First full run</b><br><span class="cap">September 2026</span></td><td>2025–2026 recordings near 60%; 7,929 rows of the processing log carrying the wrong label</td><td class="num">83.0%</td><td class="num">25,208</td></tr>
+          <tr><td><b>1 · Repair the metadata</b></td><td>Breaks split or merged wrongly; placeholder rows taking the place of real adverts; a second channel mixed into some files</td><td class="num">n/a</td><td class="num">wrong labels → 0</td></tr>
+          <tr><td><b>2 · Align the recording, not each break</b></td><td>One misplaced break brought down every correct break after it</td><td class="num">n/a</td><td class="num">about a fifth more</td></tr>
+          <tr><td><b>3 · Search the whole silence</b></td><td>The first frame often sits before the silence midpoint, where the search never looked; the search now starts six frames into the silence</td><td class="num">82.4% → 85.5%<br><span class="cap">sample</span></td><td class="num">n/a</td></tr>
+          <tr><td><b>4 · Allow for a late video start</b></td><td>In 81% of 2025 and all 2026 recordings the video stream starts up to 2.8 s after the audio, so the picture detector looked about a second late</td><td class="num">85.5% → 94.5%<br><span class="cap">sample</span></td><td class="num">n/a</td></tr>
           <tr><td><b>Latest full run</b><br><span class="cap">15 October 2026</span></td><td>All four changes, on every recording</td><td class="num"><b>94.5%</b></td><td class="num"><b>30,632</b></td></tr>
         </tbody>
       </table>
