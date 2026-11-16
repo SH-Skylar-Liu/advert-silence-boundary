@@ -243,8 +243,8 @@ Three independent layers, because none of them is sufficient alone:
    position. It found the case the guard now handles: on b41_05 the silence midpoint was
    correct to one frame and both backends pushed the cut 17 frames into the advert.
    Judgements are recorded to +/-2 frames, and the eye is used only where a disagreement
-   is much larger than that. 23 cut points have been checked this way so far: enough to
-   find faults of this kind, too few to report an accuracy figure.
+   is much larger than that. The frame-by-frame check covered 19 cut points as a set, plus individual cases.
+   That evidence identifies faults of this kind. A corpus-wide accuracy figure would require a larger sample.
 
 ### Yield
 
@@ -336,7 +336,7 @@ python3 src/loss_audit.py precision --run runs/s_v3 --ref runs/s_v2 --src $SRC \
 The October full run (v17) used the `s_v3` settings on every recording. The rule for the
 last clip of a break is unchanged and remains the open problem.
 
-## Design notes worth keeping
+## Design decisions
 
 **The ledger records raw and derived values side by side.** `--cut-csv` writes the
 Stage A midpoint (`start_silence_mid_s`), the refined cut point (`start_s`), how the
@@ -357,9 +357,8 @@ because the delivered files carry more than one video stream plus data streams.
 
 ## Known limitations
 
-- **Absolute accuracy rests on 23 frame-by-frame checks so far** (19 of them used to test
-  the October Stage B options). Corpus-wide figures are consistency with stated lengths,
-  not position.
+- **Frame-by-frame evidence covers 19 cut points as a set, plus individual cases.**
+  Corpus-wide figures measure consistency with stated lengths. Absolute cut position was checked on the sample.
 - **The last clip of a break is the least reliable clip.** 14.4% of last clips in the
   October run (16% in September) are more than five seconds short; no replacement rule has
   been tested.

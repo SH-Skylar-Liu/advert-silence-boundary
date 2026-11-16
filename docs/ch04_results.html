@@ -7517,22 +7517,10 @@ a.anchor-link {
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h1 id="Segmentation-results,-from-summary-data">Segmentation results, from summary data<a class="anchor-link" href="#Segmentation-results,-from-summary-data">¶</a></h1><p>This notebook compares the latest full run (v17, 15 October 2026) with the first (v16,
-September 2026), recomputes Table 4.6 of Chapter 4 (which reports v16), and draws the
-sample comparisons that led from one to the other. All figures come from the summary
-tables in <a href="data/"><code>data/</code></a>.</p>
-<p><strong>Read this first.</strong></p>
-<ul>
-<li>The CSVs in <code>data/</code> were <strong>transcribed by hand</strong> from the recorded screen output of the
-runs, not exported by the scripts. Their provenance is in <a href="data/README.md"><code>data/README.md</code></a>.
-The checks below confirm that the figures in the chapter follow from these tables; they
-do not re-run the pipeline.</li>
-<li>Every length figure compares a clip with the length its identifier states. That tests
-consistency with scheduled durations, <strong>not the position of a cut point</strong>.</li>
-<li>"Sample" is every eleventh recording of the delivery (151 recordings), used to test each
-change before the v17 full run.</li>
-</ul>
-<p>Run settings: <a href="../docs/method.md#settings-used-for-each-run"><code>docs/method.md</code></a>.</p>
+<h1 id="September-and-October-run-comparisons">September and October run comparisons</h1>
+<p>I compare the September 2026 run (v16) with the 15 October 2026 dry run (v17). The cross-checks below use September figures and development samples. The opening comparison includes the October full-run figures.</p>
+<p>The <a href="https://github.com/SH-Skylar-Liu/advert-silence-boundary/tree/main/analysis/data">summary CSVs</a> were transcribed from the run output. See <a href="https://github.com/SH-Skylar-Liu/advert-silence-boundary/blob/main/analysis/data/README.md">data provenance</a> and the <a href="https://github.com/SH-Skylar-Liu/advert-silence-boundary/blob/main/docs/method.md#settings-used-for-each-run">run settings</a>.</p>
+<p>Length agreement compares each clip with the length in its identifier. I checked cut positions by eye on a sample. The development sample uses every eleventh recording (151 recordings).</p>
 </div>
 </div>
 </div>
@@ -7729,8 +7717,7 @@ slots kept, of those inside the recording: 28,632 of 44,689 (64.1%)
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="1.-Table-4.6,-recomputed">1. Table 4.6, recomputed<a class="anchor-link" href="#1.-Table-4.6,-recomputed">¶</a></h2><p>Each line takes the figure from the summary tables and checks it against the value printed
-in the chapter. A failed check stops the notebook.</p>
+<h2 id="September-and-development-sample-checks">1. September and development sample checks</h2><p>The checks compare the summary CSVs with figures recorded for the September run and development samples. A mismatch stops the notebook.</p>
 </div>
 </div>
 </div>
@@ -7762,9 +7749,9 @@ in the chapter. A failed check stops the notebook.</p>
     <span class="p">(</span><span class="s2">"Within 0.2 s, last clips aside, after (%)"</span><span class="p">,</span> <span class="n">s3_notlast</span><span class="o">.</span><span class="n">pct_within_0_2s</span><span class="p">,</span> <span class="mf">94.5</span><span class="p">,</span> <span class="s2">"Sample"</span><span class="p">),</span>
     <span class="p">(</span><span class="s2">"Last clips more than 5 s off (%)"</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">v_last</span><span class="o">.</span><span class="n">pct_over_5s</span><span class="p">),</span> <span class="mi">16</span><span class="p">,</span> <span class="s2">"Full run, 2,899 last clips"</span><span class="p">),</span>
     <span class="p">(</span><span class="s2">"Last clips"</span><span class="p">,</span> <span class="n">v_last</span><span class="o">.</span><span class="n">n</span><span class="p">,</span> <span class="mi">2899</span><span class="p">,</span> <span class="s2">"Full run"</span><span class="p">),</span>
-<span class="p">],</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">"Figure"</span><span class="p">,</span> <span class="s2">"From the data"</span><span class="p">,</span> <span class="s2">"In Chapter 4"</span><span class="p">,</span> <span class="s2">"Basis"</span><span class="p">])</span>
-<span class="n">table</span><span class="p">[</span><span class="s2">"Match"</span><span class="p">]</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="s2">"From the data"</span><span class="p">]</span> <span class="o">==</span> <span class="n">table</span><span class="p">[</span><span class="s2">"In Chapter 4"</span><span class="p">]</span>
-<span class="n">table</span><span class="p">[[</span><span class="s2">"From the data"</span><span class="p">,</span> <span class="s2">"In Chapter 4"</span><span class="p">]]</span> <span class="o">=</span> <span class="n">table</span><span class="p">[[</span><span class="s2">"From the data"</span><span class="p">,</span> <span class="s2">"In Chapter 4"</span><span class="p">]]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="p">],</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">"Figure"</span><span class="p">,</span> <span class="s2">"From the data"</span><span class="p">,</span> <span class="s2">"Recorded figure"</span><span class="p">,</span> <span class="s2">"Basis"</span><span class="p">])</span>
+<span class="n">table</span><span class="p">[</span><span class="s2">"Match"</span><span class="p">]</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="s2">"From the data"</span><span class="p">]</span> <span class="o">==</span> <span class="n">table</span><span class="p">[</span><span class="s2">"Recorded figure"</span><span class="p">]</span>
+<span class="n">table</span><span class="p">[[</span><span class="s2">"From the data"</span><span class="p">,</span> <span class="s2">"Recorded figure"</span><span class="p">]]</span> <span class="o">=</span> <span class="n">table</span><span class="p">[[</span><span class="s2">"From the data"</span><span class="p">,</span> <span class="s2">"Recorded figure"</span><span class="p">]]</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">v</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 <span class="k">assert</span> <span class="n">table</span><span class="p">[</span><span class="s2">"Match"</span><span class="p">]</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span> <span class="n">table</span><span class="p">[</span><span class="o">~</span><span class="n">table</span><span class="p">[</span><span class="s2">"Match"</span><span class="p">]]</span>
 <span class="n">table</span>
 </pre></div>
@@ -7799,7 +7786,7 @@ in the chapter. A failed check stops the notebook.</p>
 <th></th>
 <th>Figure</th>
 <th>From the data</th>
-<th>In Chapter 4</th>
+<th>Recorded figure</th>
 <th>Basis</th>
 <th>Match</th>
 </tr>

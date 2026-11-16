@@ -153,14 +153,14 @@
 
 <div class="wrap">
   <header>
-    <span class="label">Corpus construction · UK television advertising</span>
+    <span class="label">15 October 2026 dry run</span>
     <h1>Cutting single adverts out of broadcast recordings</h1>
-    <p class="lede">The audio says roughly where an advert starts, the schedule decides whether to believe it, the picture sharpens the frame. No machine learning touches the boundaries.</p>
+    <p class="lede">I use the broadcast schedule to match silences to ad breaks, then use the picture to place each cut.</p>
     <div class="stats">
       <div class="stat"><b>1,669</b><span>of 1,670 recordings processed</span></div>
       <div class="stat"><b>30,632</b><span>planned clips, no video exported yet</span></div>
-      <div class="stat"><b>94.5%</b><span>within 0.2 s of stated length, last clip of each break aside</span></div>
-      <div class="stat"><b>75.1%</b><span>of unique advertisements with at least one planned clip</span></div>
+      <div class="stat"><b>83.2%</b><span>of all 30,630 clips with a stated length are within 0.2 s. The share is 94.5% excluding the last clip of each break.</span></div>
+      <div class="stat"><b>75.1%</b><span>of 18,890 unique adverts in the cleaned schedules had a planned clip (14,189 adverts)</span></div>
     </div>
     <div class="signals">
       <span class="sig"><i class="dot a"></i> audio signal</span>
@@ -170,13 +170,13 @@
   </header>
 
   <section>
-    <div class="sechead"><h2>The chain</h2><span class="label">four steps, three signals</span></div>
+    <div class="sechead"><h2>How I find the cuts</h2></div>
     <div class="panel scroller">
       <div class="pad flow">
         <div class="step">
           <span class="tag a">audio</span>
           <h3>Silences</h3>
-          <p>Hundreds per recording. Speech pauses count too, so silence alone is worthless.</p>
+          <p>I use FFmpeg to find short silences, including pauses within adverts.</p>
           <svg viewBox="0 0 190 44" width="190" height="44" role="img" aria-label="An audio track with several gaps">
             <rect x="0" y="14" width="190" height="16" fill="var(--audio-soft)"></rect>
             <g fill="var(--audio)">
@@ -199,8 +199,8 @@
         </div>
         <div class="step">
           <span class="tag s">schedule</span>
-          <h3>Fingerprint match</h3>
-          <p>The break's slot lengths slide along until the whole pattern lands on silences.</p>
+          <h3>Match the schedule</h3>
+          <p>I keep a break if every scheduled join matches a silence. I fix the recording start when two full matches give start times within five seconds of each other. Otherwise, I align each break separately.</p>
           <svg viewBox="0 0 190 44" width="190" height="44" role="img" aria-label="A pattern of slot lengths aligned onto the gaps">
             <g fill="var(--surface)" stroke="var(--audio)" stroke-dasharray="2 2">
               <rect x="42" y="14" width="16" height="16"></rect>
@@ -221,8 +221,8 @@
         </div>
         <div class="step">
           <span class="tag p">picture</span>
-          <h3>First-frame refine</h3>
-          <p>The midpoint falls a few frames early. Move to the first scene change within one second.</p>
+          <h3>Find the first frame</h3>
+          <p>Start at the midpoint of the silence. After correcting the video offset, move the cut to the first sharp picture change near the silence if there is one.</p>
           <svg viewBox="0 0 190 44" width="190" height="44" role="img" aria-label="A cut moving from the midpoint to the first scene change">
             <rect x="30" y="14" width="40" height="16" fill="var(--surface)" stroke="var(--audio)" stroke-dasharray="2 2"></rect>
             <rect x="70" y="14" width="118" height="16" fill="var(--picture-soft)"></rect>
@@ -235,14 +235,14 @@
         <div class="step">
           <span class="tag a">audio</span>
           <h3>Silence guard</h3>
-          <p>A cut landing past the return of sound found a shot change inside the advert. Revert it.</p>
+          <p>If the cut lands more than 80 ms after the silence ends, move it back to the midpoint.</p>
           <svg viewBox="0 0 190 44" width="190" height="44" role="img" aria-label="A cut that overshoots the end of the silence is reverted">
             <rect x="24" y="14" width="34" height="16" fill="var(--surface)" stroke="var(--audio)" stroke-dasharray="2 2"></rect>
             <rect x="58" y="14" width="130" height="16" fill="var(--picture-soft)"></rect>
             <line x1="58" y1="4" x2="58" y2="40" stroke="var(--audio)" stroke-width="1.5"></line>
             <text x="62" y="11" fill="var(--audio)" font-size="9">sound returns</text>
             <line x1="120" y1="12" x2="120" y2="36" stroke="var(--bad)" stroke-width="2"></line>
-            <path d="M116 38 L104 38 M110 34 L104 38 L110 42" fill="none" stroke="var(--bad)" stroke-width="1.5"></path>
+            <path d="M116 38 L45 38 M51 34 L45 38 L51 42" fill="none" stroke="var(--bad)" stroke-width="1.5"></path>
             <line x1="41" y1="12" x2="41" y2="36" stroke="var(--audio)" stroke-width="2"></line>
             <text x="126" y="24" fill="var(--bad)" font-size="9">reverted</text>
           </svg>
@@ -269,24 +269,25 @@
       </div>
     </div>
     <p class="cap" id="explain"></p>
+    <p class="cap">The timeline uses simplified timestamps. The Lidl refinement is 330 ms past the end of the silence here. Chapter 4 records 371 ms for the measured case.</p>
   </section>
 
   <section>
-    <div class="sechead"><h2>Both ends must be the same kind of point</h2><span class="label">12 recordings · 361 cuts</span></div>
+    <div class="sechead"><h2>Which cut ends the clip?</h2><span class="label">12 recordings · 361 cuts</span></div>
     <div class="panel pad">
       <div class="variants" id="variants"></div>
     </div>
-    <p class="cap">A clip's length is a difference between two instants: refine only the start and the length absorbs the <b>next</b> advert's correction as error.</p>
+    <p class="cap">If I refine the start but leave the end at the next silence midpoint, the two cuts use different rules. The October run ends each clip at the next advert’s start, except at the end of a break.</p>
   </section>
 
   <section>
-    <div class="sechead"><h2>What counts as evidence</h2><span class="label">three layers, three blind spots</span></div>
+    <div class="sechead"><h2>How I checked the cuts</h2></div>
     <div class="layers">
       <div class="layer l1">
         <span class="label">every cut · automatic</span>
         <h3>Stated length</h3>
         <p>Clip length against the length in the advert's own identifier.</p>
-        <span class="blind">Blind to a shift applied to every cut: it cancels in a difference.</span>
+        <span class="blind">Moving both cuts by the same amount leaves the length unchanged.</span>
       </div>
       <div class="layer l2">
         <span class="label">every cut · automatic</span>
@@ -295,19 +296,18 @@
         <span class="blind">Cannot tell an early cut from audio that fades in late.</span>
       </div>
       <div class="layer l3">
-        <span class="label">sample · by eye</span>
+        <span class="label">19 cut points plus individual cases</span>
         <h3>Frame by frame</h3>
-        <p>The only check that fixes absolute position. Recorded to ±2 frames.</p>
-        <span class="blind">Works on tens of cuts, not tens of thousands.</span>
+        <p>I checked the first frame by eye (±2 frames).</p>
       </div>
     </div>
-    <p class="cap"><b>The Lidl cut needed all three.</b> Layer 1 flagged two clips off slot, layer 2 showed the cut sitting 371 ms past the return of sound, and only the eye settled it: the advert began 17 frames earlier, and two independently written detectors had made the same mistake.</p>
+    <p class="cap">In the measured Lidl case, both detectors cut inside the advert. The cut in Chapter 4 was 371 ms after the silence ended. By then, the advert had played for 17 frames.</p>
   </section>
 
   <section>
-    <div class="sechead"><h2>Where it stopped working, and why</h2><span class="label">median difference from stated length, by year · September 2026 run</span></div>
+    <div class="sechead"><h2>Video start offsets in 2025 and 2026</h2><span class="label">median difference from stated length, by year · September 2026 run</span></div>
     <div class="panel pad"><div id="chart"></div></div>
-    <p class="cap">In the September run, clips from 2025 and 2026 were further from their stated length than clips from earlier years. This was first read as a change in the adverts. <b>The cause was in the files.</b> In most recent recordings the video stream starts later than the audio, and the picture detector counts from the first video frame while every other step keeps time from the start of the file, so it had been looking about a second late.</p>
+    <p class="cap">In the September run, the picture detector used the first video frame as time zero. In most 2025 and 2026 recordings, this put its search about a second late.</p>
     <div class="panel pad" style="margin-top:14px">
       <div class="mech">
         <div>
@@ -323,11 +323,19 @@
         </div>
       </div>
     </div>
-    <p class="cap"><b>Fixed in the October full run.</b> Allowing for the late video start, and searching the whole silence for the first frame, brought every year to between 81.6% and 84.7% of clips within 0.2 s; on 19 cut points checked by hand, 16 now fall exactly on the first frame and the other three are one frame away. Details in <a href="results_2026-10.html">Current results</a>.</p>
+    <p class="cap">In October I corrected the video offset and changed the search window. For each year, 81.6% to 84.7% of clips were within 0.2 s of their stated length. Of 19 cuts I checked by eye, 16 landed on the first frame and three were one frame away. <a href="https://github.com/SH-Skylar-Liu/advert-silence-boundary/blob/main/docs/results_2026-10.md">October results</a></p>
   </section>
 
   <section>
-    <div class="sechead"><h2>One row per cut</h2><span class="label">why every comparison is cheap</span></div>
+    <div class="sechead"><h2>Where the last clip ends</h2><span class="label">Open issue · v17</span></div>
+    <div class="panel pad">
+      <p>For the last clip, v17 takes the first silence more than eight seconds after the aligned schedule start. A pause within the advert can qualify.</p>
+      <p>Of 3,817 planned last clips, 14.4% were more than five seconds short. I still need to test ending the clip at its stated length.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><h2>One row per planned clip</h2></div>
     <div class="ledger">
       <div class="cell"><code>silence_start_s · silence_end_s</code><span>the silence, as ffmpeg found it</span></div>
       <div class="cell"><code>start_silence_mid_s</code><span>the audio-only cut point</span></div>
@@ -336,11 +344,10 @@
       <div class="cell"><code>refine_backend · min_scene_len</code><span>the settings that produced it</span></div>
       <div class="cell"><code>start_source</code><span>matched silence, or filled from the schedule</span></div>
     </div>
-    <p class="cap">Raw and derived values sit side by side, so every comparison here is arithmetic over stored rows, and no video is decoded twice. The guard was simulated on existing ledgers before it was written, and the implementation then reproduced the simulation to the cut.</p>
   </section>
 
   <footer>
-    Headline figures from the October 2026 full run; the year chart from the September run, before the fix; the variant comparison from the 12-recording development sample. Each clip is measured against the length stated in its own identifier, so the figures express consistency with scheduled durations and say nothing yet about the exact position of a cut point. That has been checked frame by frame on a sample only. The last clip of each break is ended by a rule of its own with a known fault and is the least reliable clip. Updated 17 October 2026.
+    The 14,189 unique adverts with a planned clip also account for 71.2% of the 19,923 delivered identifiers.
   </footer>
 </div>
 
@@ -355,9 +362,9 @@
   ];
   var BREAK_END = 2830.32, TRUTH = 2810.30, GUARD_MS = 80;
   var MODES = {
-    a: { cap: "audio only", text: "Cuts sit at the midpoint of each silence. That is close, but each clip opens on a few frames of the advert before it." },
-    b: { cap: "audio + picture", text: "Three cuts snap onto their slot lengths. Lidl does not: its midpoint was already right, so the detector moved the cut 0.66 s into the advert, stretching Skechers to 20.68 s." },
-    c: { cap: "audio + picture + guard", text: "The Lidl refinement overshoots the return of sound, so it reverts to one frame from the first frame confirmed by eye. Every clip is now within 0.02 s of its slot." }
+    a: { cap: "audio only", text: "Cuts use the silence midpoints." },
+    b: { cap: "audio + picture", text: "The detector moves the Lidl cut 0.66 s past the midpoint. The preceding Skechers clip grows to 20.68 s." },
+    c: { cap: "audio + picture + guard", text: "The guard restores the Lidl midpoint, one frame from the actual start. All five clips are within 0.02 s of their stated lengths." }
   };
 
   var track = document.getElementById("track"), explain = document.getElementById("explain"),

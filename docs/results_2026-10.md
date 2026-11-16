@@ -2,8 +2,8 @@
 
 Current figures for the segmentation pipeline. The latest full run (v17, 15 October 2026)
 applies every October change to all recordings; the sections after it record how the
-pipeline got there from the first full run (v16, September 2026), which is the run
-reported in Chapter 4 of the thesis (14 October 2026). Method and run settings are in
+pipeline developed from the first full run (v16, September 2026). The submitted Chapter 4
+reports the October dry run and uses the September run for comparison. Method and run settings are in
 [method.md](method.md#settings-used-for-each-run); the August–September log is kept in
 [results_2026-09.md](results_2026-09.md).
 
@@ -74,8 +74,9 @@ different part of the metadata; slots are therefore counted once per recording.
 
 64.1% is a lower bound: breaks outside the recording can only be identified where the
 recording start was fixed (994 of 1,669 recordings). Of the 18,890 unique adverts,
-14,189 were obtained (75.1%); of the 4,701 not obtained, 3,103 appear only once in the
-delivery.
+14,189 had at least one planned clip (75.1%), or 71.2% of the 19,923 unique identifiers
+in the delivered metadata. Of the 4,701 cleaned-schedule identifiers without a planned
+clip, 3,103 appear only once in the delivery.
 
 Where breaks were lost (counted file by file): 1,990 because a boundary found no silence
 (545 of them missing a single boundary), 1,423 outside the recording, 171 placed

@@ -183,12 +183,12 @@
     <button class="theme" id="theme" type="button" aria-label="Switch colour theme">Theme: auto</button>
   </div>
   <h1>Advert segmentation pipeline</h1>
-  <p class="lede">The pipeline cuts single adverts out of continuous UK television recordings from the BFI National Archive, using the industry metadata as a guide. This page reports the latest full run (15 October 2026), which planned the clips without exporting any video yet, and traces how the pipeline got there from the first full run in September. How the pipeline works is shown in the <a href="pipeline_explainer.html">pipeline explainer</a>.</p>
+  <p class="lede">I use broadcast schedules, audio and picture to find where adverts start and end in BFI recordings. The figures below come from the 15 October 2026 dry run. See the <a href="pipeline_explainer.html">pipeline explainer</a> for a worked example.</p>
 
   <div class="stats">
     <div class="stat"><b>1,669</b><span>of 1,670 recordings processed; one 32-hour file skipped</span></div>
     <div class="stat"><b>30,632</b><span>planned clips, no video exported yet</span></div>
-    <div class="stat"><b>94.5%</b><span>of clips within 0.2 s of their stated length (last clip of each break aside)</span></div>
+    <div class="stat"><b>83.2%</b><span>of all 30,630 clips with a stated length are within 0.2 s. The share is 94.5% excluding the last clip of each break.</span></div>
     <div class="stat"><b>75.1%</b><span>of 18,890 unique advertisements with at least one planned clip</span></div>
   </div>
 </header>
@@ -209,7 +209,7 @@
 
   <!-- 1 -->
   <section id="material">
-    <div class="sechead"><span class="label">1 · The material</span><h2>The recordings are continuous, and the metadata keeps a different clock</h2></div>
+    <div class="sechead"><span class="label">1 · The material</span><h2>Recordings and schedules</h2></div>
     <div class="grid2">
       <div class="panel pad">
         <div class="levels">
@@ -230,7 +230,7 @@
 
   <!-- 2 -->
   <section id="rules">
-    <div class="sechead"><span class="label">2 · Inclusion rules</span><h2>The metadata does not settle what counts as one advert, so the pipeline has to</h2></div>
+    <div class="sechead"><span class="label">2 · Inclusion rules</span><h2>What I count as one advert</h2></div>
     <div class="grid2">
       <div class="panel scroller">
         <table>
@@ -257,7 +257,7 @@
 
   <!-- 3 -->
   <section id="results">
-    <div class="sechead"><span class="label">3 · Latest full run · 15 October 2026</span><h2>Clips match their stated length to within 0.2 s in every year</h2></div>
+    <div class="sechead"><span class="label">3 · Latest full run · 15 October 2026</span><h2>Agreement with stated lengths by year</h2></div>
     <div class="grid2">
       <div class="panel pad">
         <span class="label">clips within 0.2 s of stated length, by place in the break</span>
@@ -288,7 +288,7 @@
 
   <!-- 4 -->
   <section id="loss">
-    <div class="sechead"><span class="label">4 · Coverage</span><h2>Three quarters of the unique advertisements have a planned clip</h2></div>
+    <div class="sechead"><span class="label">4 · Coverage</span><h2>Unique adverts with a planned clip</h2></div>
     <div class="panel pad">
       <span class="label">18,890 unique advertisements in the cleaned schedules · latest full run</span>
       <div class="strip" role="img" aria-label="14,189 with a planned clip, 3,103 missing that appear only once, 1,598 other missing">
@@ -308,7 +308,7 @@
 
   <!-- 5 -->
   <section id="improvements">
-    <div class="sechead"><span class="label">5 · From the first full run to the latest</span><h2>Four changes took the share of clips within 0.2 s from 83% to 94.5%</h2></div>
+    <div class="sechead"><span class="label">5 · From the first full run to the latest</span><h2>Changes between the September and October runs</h2></div>
     <div class="panel scroller">
       <table>
         <thead><tr><th>Step</th><th>Problem it solved</th><th class="num">Within 0.2 s, last clips aside</th><th class="num">Cut points</th></tr></thead>
@@ -340,7 +340,7 @@
 
   <!-- 6 -->
   <section id="status">
-    <div class="sechead"><span class="label">6 · Next</span><h2>What is still open</h2></div>
+    <div class="sechead"><span class="label">6 · Next</span><h2>Open issues</h2></div>
     <div class="board">
       <div class="col open">
         <header><span class="chip b">Last clip of a break</span><p>3,817 clips</p></header>
@@ -362,9 +362,9 @@
     <div class="sechead"><span class="label">7 · Links</span><h2>Pages and code</h2></div>
     <div class="cards">
       <a class="card" href="pipeline_explainer.html"><span class="label">walkthrough</span><h3>Pipeline explainer</h3><p>How audio, schedule and picture fix each cut, with one break worked through.</p><span class="go">Open →</span></a>
-      <a class="card" href="ch04_results.html"><span class="label">notebook</span><h3>Chapter 4 results</h3><p>Table 4.6 recomputed from summary tables.</p><span class="go">Open →</span></a>
-      <a class="card" href="results_2026-10.html"><span class="label">figures</span><h3>Current results</h3><p>Every current figure with its basis and status.</p><span class="go">Open →</span></a>
-      <a class="card" href="method.html"><span class="label">method</span><h3>Method and settings</h3><p>Each step, the options used in each run, and known limitations.</p><span class="go">Open →</span></a>
+      <a class="card" href="ch04_results.html"><span class="label">notebook</span><h3>September and October run comparisons</h3><p>Notebook with v16, v17 and development sample results.</p><span class="go">Open →</span></a>
+      <a class="card" href="https://github.com/SH-Skylar-Liu/advert-silence-boundary/blob/main/docs/results_2026-10.md"><span class="label">figures</span><h3>Current results</h3><p>October dry-run figures and comparison with September.</p><span class="go">Open →</span></a>
+      <a class="card" href="https://github.com/SH-Skylar-Liu/advert-silence-boundary/blob/main/docs/method.md"><span class="label">method</span><h3>Method and settings</h3><p>Each step, the options used in each run, and known limitations.</p><span class="go">Open →</span></a>
       <a class="card" href="https://github.com/SH-Skylar-Liu/advert-silence-boundary"><span class="label">code</span><h3>Repository</h3><p>Scripts, commands to reproduce a run, and version history.</p><span class="go">GitHub →</span></a>
     </div>
   </section>
